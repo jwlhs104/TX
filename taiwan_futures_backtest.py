@@ -21,7 +21,7 @@ plt.rcParams['font.sans-serif'] = ['Arial Unicode MS', 'SimHei', 'DejaVu Sans']
 plt.rcParams['axes.unicode_minus'] = False
 
 class TaiwanFuturesBacktest:
-    def __init__(self, start_date='2015-01-01', end_date='2025-09-30'):
+    def __init__(self, start_date='2024-01-01', end_date='2024-12-31'):
         self.start_date = start_date
         self.end_date = end_date
         self.data = None
@@ -29,6 +29,53 @@ class TaiwanFuturesBacktest:
         self.results = []
 
     def get_taiwan_futures_data(self):
+        """
+        Load Taiwan Futures data from filtered CSV file
+        """
+        try:
+            csv_path = '/Users/johnny/Desktop/JQC/TX/data/filtered_tx_2024.csv'
+            print(f"Loading Taiwan futures data from {csv_path}...")
+
+            # Read CSV file
+            df = pd.read_csv(csv_path, encoding='utf-8')
+
+            # Check if data is empty
+            if df.empty:
+                raise ValueError("No data in CSV file")
+
+            # Parse date from 到期月份(週別) column - need to infer actual trading dates
+            # For now, create sequential trading dates for 2024
+            start_date = pd.to_datetime('2024-01-01')
+
+            # Filter data to remove rows with missing closing prices
+            df = df.dropna(subset=['收盤價'])
+
+            # Create date index - assuming daily trading data
+            trading_dates = pd.bdate_range(start=start_date, periods=len(df), freq='B')
+
+            # Create DataFrame with proper column names
+            data = pd.DataFrame(index=trading_dates[:len(df)])
+            data['Open'] = df['開盤價'].values
+            data['High'] = df['最高價'].values
+            data['Low'] = df['最低價'].values
+            data['Close'] = df['收盤價'].values
+            data['Volume'] = df['成交量'].fillna(0).values
+
+            # Remove any rows with NaN values
+            data = data.dropna()
+
+            print(f"Successfully loaded {len(data)} trading days of data from CSV")
+            print(f"Date range: {data.index[0].strftime('%Y-%m-%d')} to {data.index[-1].strftime('%Y-%m-%d')}")
+
+            self.data = data
+            return data
+
+        except Exception as e:
+            print(f"Error loading CSV data: {e}")
+            print("Falling back to Yahoo Finance data...")
+            return self.get_yahoo_finance_data()
+
+    def get_yahoo_finance_data(self):
         """
         Get Taiwan Futures data using Taiwan Stock Exchange Index as proxy
         Since direct futures data might not be available, we'll use ^TWII (Taiwan Weighted Index)
@@ -844,8 +891,8 @@ def main():
 
     # Initialize backtester
     backtester = TaiwanFuturesBacktest(
-        start_date='2015-01-01',
-        end_date='2025-09-30'
+        start_date='2024-01-01',
+        end_date='2024-12-31'
     )
 
     # Run complete analysis
