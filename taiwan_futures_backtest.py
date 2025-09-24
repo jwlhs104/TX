@@ -125,8 +125,7 @@ class TaiwanFuturesBacktest:
                     'contract_month': contract_month
                 })
 
-        self.settlement_dates = pd.DataFrame(settlement_dates)
-        print(self.settlement_dates)
+        self.settlement_dates = pd.DataFrame(settlement_dates).sort_values(by='date')
         print(f"Found {len(self.settlement_dates)} settlement dates from CSV:")
         print(f"  Weekly settlements: {len(self.settlement_dates[self.settlement_dates['type'] == 'weekly'])}")
         print(f"  Monthly settlements: {len(self.settlement_dates[self.settlement_dates['type'] == 'monthly'])}")
