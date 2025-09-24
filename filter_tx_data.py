@@ -4,13 +4,22 @@ import glob
 
 # Get all CSV files from 2017-2024
 csv_files = sorted([f"data/{year}_fut.csv" for year in range(2017, 2025)])
+
+# Add 2025 monthly files
+monthly_2025_files = sorted(glob.glob("data/2025/*.csv"))
+csv_files.extend(monthly_2025_files)
+
 print(f"Processing files: {csv_files}")
 
 all_filtered_data = []
 
 for csv_file in csv_files:
-    year = csv_file.split('/')[-1][:4]
-    print(f"\nProcessing {year} data...")
+    if "2025/" in csv_file:
+        year = "2025"
+        print(f"\nProcessing {year} data from {csv_file}...")
+    else:
+        year = csv_file.split('/')[-1][:4]
+        print(f"\nProcessing {year} data...")
 
     df = pd.read_csv(csv_file, index_col=False, encoding="utf-8", low_memory=False)
 

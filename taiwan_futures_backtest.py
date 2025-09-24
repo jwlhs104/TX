@@ -51,6 +51,7 @@ class TaiwanFuturesBacktest:
         # Create DataFrame with proper column names
         data = pd.DataFrame()
         data['Date'] = df['交易日期'].values
+        data['Type'] = df['交易時段'].values
         data['Open'] = df['開盤價'].values
         data['High'] = df['最高價'].values
         data['Low'] = df['最低價'].values
@@ -180,8 +181,8 @@ class TaiwanFuturesBacktest:
                 continue
 
             # Calculate trend indicator
-            opening_price = self.data[self.data['Date'] == opening_day].iloc[0]['Open']
-            prev_close = self.data[self.data['Date'] == prev_day].iloc[1]['Close']
+            opening_price = self.data[(self.data['Date'] == opening_day) & (self.data['Type'] == '盤後')].iloc[0]['Open']
+            prev_close = self.data[(self.data['Date'] == settlement_date) & (self.data['Type'] == '盤後')].iloc[0]['Close']
             trend_indicator = prev_close - opening_price
 
             # Get settlement day data
