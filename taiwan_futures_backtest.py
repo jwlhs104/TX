@@ -75,13 +75,68 @@ class TaiwanFuturesBacktest:
 
     def calculate_settlement_dates(self):
         """
-        Calculate settlement dates for both weekly and monthly options
-        Weekly: Every Wednesday
-        Monthly: Third Wednesday of each month
+        Load settlement dates from data/taifex.csv instead of calculating manually
+        Filter by counting_period (weekly/monthly) and date range
         """
         if self.data is None:
             raise ValueError("Data not loaded. Call get_taiwan_futures_data() first.")
 
+        # Load settlement dates from CSV
+        csv_path = '/Users/johnny/Desktop/JQC/TX/data/taifex.csv'
+        print(f"Loading settlement dates from {csv_path}...")
+
+        try:
+            df = pd.read_csv(csv_path, encoding='utf-8')
+        except Exception as e:
+            print(f"Error loading {csv_path}: {e}")
+            print("Falling back to manual calculation...")
+            return self._calculate_settlement_dates_manual()
+
+        # Convert date string to datetime
+        df['最後結算日'] = pd.to_datetime(df['最後結算日'], format='%Y/%m/%d')
+
+        # Filter by date range from our data
+        start_date = self.data['Date'].min()
+        end_date = self.data['Date'].max()
+        df = df[(df['最後結算日'] >= start_date) & (df['最後結算日'] <= end_date)]
+
+        # Filter settlement dates that exist in our trading data
+        df = df[df['最後結算日'].isin(self.data['Date'])]
+
+        settlement_dates = []
+
+        for _, row in df.iterrows():
+            settlement_date = row['最後結算日']
+            contract_month = row['契約月份']
+
+            # Determine settlement type based on contract month format
+            # Weekly contracts have format like 202509W1, 202509W2, etc.
+            # Monthly contracts have format like 202509
+            if 'W' in contract_month:
+                settlement_type = 'weekly'
+            else:
+                settlement_type = 'monthly'
+
+            # Filter by counting period
+            if self.counting_period == settlement_type or self.counting_period == "weekly":
+                settlement_dates.append({
+                    'date': settlement_date,
+                    'type': self.counting_period,
+                    'contract_month': contract_month
+                })
+
+        self.settlement_dates = pd.DataFrame(settlement_dates)
+        print(self.settlement_dates)
+        print(f"Found {len(self.settlement_dates)} settlement dates from CSV:")
+        print(f"  Weekly settlements: {len(self.settlement_dates[self.settlement_dates['type'] == 'weekly'])}")
+        print(f"  Monthly settlements: {len(self.settlement_dates[self.settlement_dates['type'] == 'monthly'])}")
+
+        return self.settlement_dates
+
+    def _calculate_settlement_dates_manual(self):
+        """
+        Fallback method to calculate settlement dates manually (original implementation)
+        """
         start_date = self.data['Date'].min()
         end_date = self.data['Date'].max()
 
@@ -121,7 +176,7 @@ class TaiwanFuturesBacktest:
             current_date += timedelta(days=1)
 
         self.settlement_dates = pd.DataFrame(settlement_dates)
-        print(f"Found {len(self.settlement_dates)} settlement dates:")
+        print(f"Found {len(self.settlement_dates)} settlement dates (manual calculation):")
         print(f"  Weekly settlements: {len(self.settlement_dates[self.settlement_dates['type'] == 'weekly'])}")
         print(f"  Monthly settlements: {len(self.settlement_dates[self.settlement_dates['type'] == 'monthly'])}")
 
@@ -206,14 +261,16 @@ class TaiwanFuturesBacktest:
             opening_day = self.calculate_opening_day(settlement_date)
 
             if opening_day is None or not (self.data['Date'] == opening_day).any():
+                print(f'no opening day: {opening_day}, settlement_date: {settlement_date}')
                 continue
 
             # Get previous day (day before settlement)
             prev_day = settlement_date - timedelta(days=1)
-            while not (self.data['Date'] == prev_day).any() and prev_day > opening_day:
+            while not (self.data['Date'] == prev_day).any() and prev_day >= opening_day:
                 prev_day -= timedelta(days=1)
 
             if not (self.data['Date'] == prev_day).any():
+                print(f'no prev day: {prev_day}, settlement_date: {settlement_date}')
                 continue
 
             # Get settlement day data first (needed for settlement_open variation)
