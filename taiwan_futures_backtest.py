@@ -289,12 +289,15 @@ class TaiwanFuturesBacktest:
             # Determine trade direction
             if trend_indicator > 0:
                 direction = 'long'
-                pnl_pct = (settlement_close - settlement_open) / settlement_open * 100
+                pnl = settlement_close - settlement_open
+                pnl_pct = pnl / settlement_open * 100
             elif trend_indicator < 0:
                 direction = 'short'
-                pnl_pct = (settlement_open - settlement_close) / settlement_open * 100
+                pnl = settlement_open - settlement_close
+                pnl_pct = pnl / settlement_open * 100
             else:
                 direction = 'no_trade'
+                pnl = 0
                 pnl_pct = 0
 
             # Calculate additional indicators
@@ -319,6 +322,7 @@ class TaiwanFuturesBacktest:
                 'direction': direction,
                 'settlement_open': settlement_open,
                 'settlement_close': settlement_close,
+                'pnl': pnl,
                 'pnl_pct': pnl_pct,
                 'is_red_candle': is_red_candle,
                 'is_high_open': is_high_open,
