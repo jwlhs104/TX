@@ -427,7 +427,7 @@ class TaiwanFuturesBacktest:
 
     def analyze_filters(self, results_df=None):
         """
-        Analyze performance by different filter conditions
+        Analyze performance by different filter conditions including combinations
         """
         if results_df is None:
             results_df = self.results
@@ -440,7 +440,8 @@ class TaiwanFuturesBacktest:
 
         filter_analysis = {}
 
-        # 1. Trend Direction Analysis
+        # 1. Individual Filter Analysis (original)
+        # Trend Direction Analysis
         up_trend = trades[trades['trend_direction'] == 'up']
         down_trend = trades[trades['trend_direction'] == 'down']
 
@@ -449,7 +450,7 @@ class TaiwanFuturesBacktest:
             '往下': self.calculate_performance_stats(down_trend)
         }
 
-        # 2. Previous Day Candle Color Analysis
+        # Previous Day Candle Color Analysis
         red_candle = trades[trades['is_red_candle'] == True]
         black_candle = trades[trades['is_red_candle'] == False]
 
@@ -458,7 +459,7 @@ class TaiwanFuturesBacktest:
             '黑K': self.calculate_performance_stats(black_candle)
         }
 
-        # 3. Opening Position Analysis
+        # Opening Position Analysis
         high_open = trades[trades['is_high_open'] == True]
         low_open = trades[trades['is_high_open'] == False]
 
@@ -467,13 +468,94 @@ class TaiwanFuturesBacktest:
             '低開': self.calculate_performance_stats(low_open)
         }
 
-        # 4. Settlement Type Analysis
+        # Settlement Type Analysis
         weekly = trades[trades['settlement_type'] == 'weekly']
         monthly = trades[trades['settlement_type'] == 'monthly']
 
         filter_analysis['結算類型'] = {
             '週選': self.calculate_performance_stats(weekly),
             '月選': self.calculate_performance_stats(monthly)
+        }
+
+        # 2. Two-Factor Combination Analysis
+
+        # Trend Direction + Red Candle combinations
+        up_red = trades[(trades['trend_direction'] == 'up') & (trades['is_red_candle'] == True)]
+        up_black = trades[(trades['trend_direction'] == 'up') & (trades['is_red_candle'] == False)]
+        down_red = trades[(trades['trend_direction'] == 'down') & (trades['is_red_candle'] == True)]
+        down_black = trades[(trades['trend_direction'] == 'down') & (trades['is_red_candle'] == False)]
+
+        filter_analysis['趨勢+K線'] = {
+            '上漲+紅K': self.calculate_performance_stats(up_red),
+            '上漲+黑K': self.calculate_performance_stats(up_black),
+            '下跌+紅K': self.calculate_performance_stats(down_red),
+            '下跌+黑K': self.calculate_performance_stats(down_black)
+        }
+
+        # Trend Direction + Opening Position combinations
+        up_high = trades[(trades['trend_direction'] == 'up') & (trades['is_high_open'] == True)]
+        up_low = trades[(trades['trend_direction'] == 'up') & (trades['is_high_open'] == False)]
+        down_high = trades[(trades['trend_direction'] == 'down') & (trades['is_high_open'] == True)]
+        down_low = trades[(trades['trend_direction'] == 'down') & (trades['is_high_open'] == False)]
+
+        filter_analysis['趨勢+開盤'] = {
+            '上漲+高開': self.calculate_performance_stats(up_high),
+            '上漲+低開': self.calculate_performance_stats(up_low),
+            '下跌+高開': self.calculate_performance_stats(down_high),
+            '下跌+低開': self.calculate_performance_stats(down_low)
+        }
+
+        # Red Candle + Opening Position combinations
+        red_high = trades[(trades['is_red_candle'] == True) & (trades['is_high_open'] == True)]
+        red_low = trades[(trades['is_red_candle'] == True) & (trades['is_high_open'] == False)]
+        black_high = trades[(trades['is_red_candle'] == False) & (trades['is_high_open'] == True)]
+        black_low = trades[(trades['is_red_candle'] == False) & (trades['is_high_open'] == False)]
+
+        filter_analysis['K線+開盤'] = {
+            '紅K+高開': self.calculate_performance_stats(red_high),
+            '紅K+低開': self.calculate_performance_stats(red_low),
+            '黑K+高開': self.calculate_performance_stats(black_high),
+            '黑K+低開': self.calculate_performance_stats(black_low)
+        }
+
+        # 3. Three-Factor Combination Analysis
+
+        # Trend + Red Candle + Opening Position combinations
+        up_red_high = trades[(trades['trend_direction'] == 'up') &
+                            (trades['is_red_candle'] == True) &
+                            (trades['is_high_open'] == True)]
+        up_red_low = trades[(trades['trend_direction'] == 'up') &
+                           (trades['is_red_candle'] == True) &
+                           (trades['is_high_open'] == False)]
+        up_black_high = trades[(trades['trend_direction'] == 'up') &
+                              (trades['is_red_candle'] == False) &
+                              (trades['is_high_open'] == True)]
+        up_black_low = trades[(trades['trend_direction'] == 'up') &
+                             (trades['is_red_candle'] == False) &
+                             (trades['is_high_open'] == False)]
+
+        down_red_high = trades[(trades['trend_direction'] == 'down') &
+                              (trades['is_red_candle'] == True) &
+                              (trades['is_high_open'] == True)]
+        down_red_low = trades[(trades['trend_direction'] == 'down') &
+                             (trades['is_red_candle'] == True) &
+                             (trades['is_high_open'] == False)]
+        down_black_high = trades[(trades['trend_direction'] == 'down') &
+                                (trades['is_red_candle'] == False) &
+                                (trades['is_high_open'] == True)]
+        down_black_low = trades[(trades['trend_direction'] == 'down') &
+                               (trades['is_red_candle'] == False) &
+                               (trades['is_high_open'] == False)]
+
+        filter_analysis['趨勢+K線+開盤'] = {
+            '上漲+紅K+高開': self.calculate_performance_stats(up_red_high),
+            '上漲+紅K+低開': self.calculate_performance_stats(up_red_low),
+            '上漲+黑K+高開': self.calculate_performance_stats(up_black_high),
+            '上漲+黑K+低開': self.calculate_performance_stats(up_black_low),
+            '下跌+紅K+高開': self.calculate_performance_stats(down_red_high),
+            '下跌+紅K+低開': self.calculate_performance_stats(down_red_low),
+            '下跌+黑K+高開': self.calculate_performance_stats(down_black_high),
+            '下跌+黑K+低開': self.calculate_performance_stats(down_black_low)
         }
 
         return filter_analysis
