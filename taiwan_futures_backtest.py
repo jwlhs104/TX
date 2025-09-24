@@ -9,7 +9,6 @@ and implements corresponding trading strategies as specified in the requirements
 
 import pandas as pd
 import numpy as np
-import yfinance as yf
 import matplotlib.pyplot as plt
 import seaborn as sns
 from datetime import datetime, timedelta
@@ -35,119 +34,43 @@ class TaiwanFuturesBacktest:
         """
         Load Taiwan Futures data from filtered CSV file
         """
-        try:
-            csv_path = '/Users/johnny/Desktop/JQC/TX/data/filtered_tx_2024.csv'
-            print(f"Loading Taiwan futures data from {csv_path}...")
+        csv_path = '/Users/johnny/Desktop/JQC/TX/data/filtered_tx_2024.csv'
+        print(f"Loading Taiwan futures data from {csv_path}...")
 
-            # Read CSV file
-            df = pd.read_csv(csv_path, encoding='utf-8')
+        # Read CSV file
+        df = pd.read_csv(csv_path, encoding='utf-8')
 
-            # Check if data is empty
-            if df.empty:
-                raise ValueError("No data in CSV file")
+        # Check if data is empty
+        if df.empty:
+            raise ValueError("No data in CSV file")
 
-            # Parse date from 到期月份(週別) column - need to infer actual trading dates
-            # For now, create sequential trading dates for 2024
-            start_date = pd.to_datetime('2024-01-01')
+        # Parse date from 到期月份(週別) column - need to infer actual trading dates
+        # For now, create sequential trading dates for 2024
+        start_date = pd.to_datetime('2024-01-01')
 
-            # Filter data to remove rows with missing closing prices
-            df = df.dropna(subset=['收盤價'])
+        # Filter data to remove rows with missing closing prices
+        df = df.dropna(subset=['收盤價'])
 
-            # Create date index - assuming daily trading data
-            trading_dates = pd.bdate_range(start=start_date, periods=len(df), freq='B')
+        # Create DataFrame with proper column names
+        data = pd.DataFrame()
+        data['Date'] = df['交易日期'].values
+        data['Open'] = df['開盤價'].values
+        data['High'] = df['最高價'].values
+        data['Low'] = df['最低價'].values
+        data['Close'] = df['收盤價'].values
+        data['Volume'] = df['成交量'].fillna(0).values
 
-            # Create DataFrame with proper column names
-            data = pd.DataFrame(index=trading_dates[:len(df)])
-            data['Open'] = df['開盤價'].values
-            data['High'] = df['最高價'].values
-            data['Low'] = df['最低價'].values
-            data['Close'] = df['收盤價'].values
-            data['Volume'] = df['成交量'].fillna(0).values
+        # Convert Date to datetime
+        data['Date'] = pd.to_datetime(data['Date'])
 
-            # Remove any rows with NaN values
-            data = data.dropna()
+        # Remove any rows with NaN values
+        data = data.dropna()
 
-            print(f"Successfully loaded {len(data)} trading days of data from CSV")
-            print(f"Date range: {data.index[0].strftime('%Y-%m-%d')} to {data.index[-1].strftime('%Y-%m-%d')}")
+        print(f"Successfully loaded {len(data)} trading days of data from CSV")
+        print(f"Date range: {data['Date'].min().strftime('%Y-%m-%d')} to {data['Date'].max().strftime('%Y-%m-%d')}")
 
-            self.data = data
-            return data
-
-        except Exception as e:
-            print(f"Error loading CSV data: {e}")
-            print("Falling back to Yahoo Finance data...")
-            return self.get_yahoo_finance_data()
-
-    def get_yahoo_finance_data(self):
-        """
-        Get Taiwan Futures data using Taiwan Stock Exchange Index as proxy
-        Since direct futures data might not be available, we'll use ^TWII (Taiwan Weighted Index)
-        """
-        try:
-            # Use Taiwan Weighted Index as proxy for Taiwan Futures
-            ticker = "^TWII"
-            print(f"Fetching Taiwan market data for {ticker}...")
-
-            # Download data
-            data = yf.download(ticker, start=self.start_date, end=self.end_date, progress=False)
-
-            if data.empty:
-                raise ValueError("No data retrieved")
-
-            # Clean column names
-            data.columns = ['Open', 'High', 'Low', 'Close', 'Adj Close', 'Volume']
-            data = data[['Open', 'High', 'Low', 'Close', 'Volume']].copy()
-
-            # Remove any rows with NaN values
-            data = data.dropna()
-
-            print(f"Successfully retrieved {len(data)} trading days of data")
-            print(f"Date range: {data.index[0].strftime('%Y-%m-%d')} to {data.index[-1].strftime('%Y-%m-%d')}")
-
-            self.data = data
-            return data
-
-        except Exception as e:
-            print(f"Error fetching data: {e}")
-            print("Generating sample data for demonstration...")
-            return self.generate_sample_data()
-
-    def generate_sample_data(self):
-        """Generate sample data for demonstration purposes"""
-        dates = pd.date_range(start=self.start_date, end=self.end_date, freq='D')
-        # Filter to weekdays only (stock market trading days)
-        dates = dates[dates.weekday < 5]
-
-        np.random.seed(42)
-        n = len(dates)
-
-        # Generate realistic price data starting from around 10000 (typical Taiwan index level)
-        base_price = 10000
-        returns = np.random.normal(0.0005, 0.015, n)  # Daily returns with slight positive drift
-        prices = [base_price]
-
-        for i in range(1, n):
-            prices.append(prices[-1] * (1 + returns[i]))
-
-        prices = np.array(prices)
-
-        # Generate OHLC data
-        data = pd.DataFrame(index=dates)
-        data['Open'] = prices * (1 + np.random.normal(0, 0.002, n))
-        data['High'] = np.maximum(data['Open'], prices * (1 + np.abs(np.random.normal(0, 0.01, n))))
-        data['Low'] = np.minimum(data['Open'], prices * (1 - np.abs(np.random.normal(0, 0.01, n))))
-        data['Close'] = prices
-        data['Volume'] = np.random.lognormal(15, 0.5, n).astype(int)
-
-        # Ensure OHLC consistency
-        for i in range(len(data)):
-            high = max(data.iloc[i]['Open'], data.iloc[i]['High'], data.iloc[i]['Close'])
-            low = min(data.iloc[i]['Open'], data.iloc[i]['Low'], data.iloc[i]['Close'])
-            data.iloc[i, data.columns.get_loc('High')] = high
-            data.iloc[i, data.columns.get_loc('Low')] = low
-
-        print(f"Generated sample data with {len(data)} trading days")
         self.data = data
+        print(data)
         return data
 
     def calculate_settlement_dates(self):
@@ -159,8 +82,8 @@ class TaiwanFuturesBacktest:
         if self.data is None:
             raise ValueError("Data not loaded. Call get_taiwan_futures_data() first.")
 
-        start_date = self.data.index[0]
-        end_date = self.data.index[-1]
+        start_date = self.data['Date'].min()
+        end_date = self.data['Date'].max()
 
         settlement_dates = []
 
@@ -170,7 +93,7 @@ class TaiwanFuturesBacktest:
             # Check if it's a Wednesday (weekday = 2)
             if current_date.weekday() == 2:
                 # Check if this Wednesday exists in our trading data
-                if current_date in self.data.index:
+                if (self.data['Date'] == current_date).any():
                     # Determine if it's weekly or monthly settlement
                     # Monthly: Third Wednesday of the month
                     month_start = current_date.replace(day=1)
@@ -221,7 +144,7 @@ class TaiwanFuturesBacktest:
         while opening_date not in self.data.index and opening_date <= settlement_date:
             opening_date += timedelta(days=1)
 
-        return opening_date if opening_date in self.data.index else None
+        return opening_date if (self.data['Date'] == opening_date).any() else None
 
     def run_backtest(self):
         """
@@ -246,27 +169,28 @@ class TaiwanFuturesBacktest:
             # Calculate opening day
             opening_day = self.calculate_opening_day(settlement_date)
 
-            if opening_day is None or opening_day not in self.data.index:
+            if opening_day is None or not (self.data['Date'] == opening_day).any():
                 continue
 
             # Get previous day (day before settlement)
             prev_day = settlement_date - timedelta(days=1)
-            while prev_day not in self.data.index and prev_day > opening_day:
+            while not (self.data['Date'] == prev_day).any() and prev_day > opening_day:
                 prev_day -= timedelta(days=1)
 
-            if prev_day not in self.data.index:
+            if not (self.data['Date'] == prev_day).any():
                 continue
 
             # Calculate trend indicator
-            opening_price = self.data.loc[opening_day, 'Open']
-            prev_close = self.data.loc[prev_day, 'Close']
+            opening_price = self.data[self.data['Date'] == opening_day].iloc[0]['Open']
+            prev_close = self.data[self.data['Date'] == prev_day].iloc[1]['Close']
             trend_indicator = prev_close - opening_price
 
             # Get settlement day data
-            settlement_open = self.data.loc[settlement_date, 'Open']
-            settlement_close = self.data.loc[settlement_date, 'Close']
-            settlement_high = self.data.loc[settlement_date, 'High']
-            settlement_low = self.data.loc[settlement_date, 'Low']
+            settlement_row = self.data[self.data['Date'] == settlement_date].iloc[0]
+            settlement_open = settlement_row['Open']
+            settlement_close = settlement_row['Close']
+            settlement_high = settlement_row['High']
+            settlement_low = settlement_row['Low']
 
             # Determine trade direction
             if trend_indicator > 0:
@@ -280,7 +204,7 @@ class TaiwanFuturesBacktest:
                 pnl_pct = 0
 
             # Calculate additional indicators
-            prev_day_data = self.data.loc[prev_day]
+            prev_day_data = self.data[self.data['Date'] == prev_day].iloc[0]
             is_red_candle = prev_day_data['Close'] > prev_day_data['Open']
             is_high_open = settlement_open > prev_close
 
@@ -826,7 +750,7 @@ class TaiwanFuturesBacktest:
         overall_stats = self.calculate_performance_stats()
 
         print(f"\n【整體策略績效 Overall Performance】")
-        print(f"分析期間: {self.data.index[0].strftime('%Y-%m-%d')} 至 {self.data.index[-1].strftime('%Y-%m-%d')}")
+        print(f"分析期間: {self.data['Date'].min().strftime('%Y-%m-%d')} 至 {self.data['Date'].max().strftime('%Y-%m-%d')}")
         print(f"總交易次數: {overall_stats.get('總次', 0)}")
         print(f"事件發生率: {overall_stats.get('EventRate', 'N/A')}")
 

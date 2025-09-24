@@ -75,8 +75,8 @@ class ReportGenerator:
             str: Complete markdown content
         """
         # Get data info
-        data_start = self.backtester.data.index[0].strftime('%Y-%m-%d')
-        data_end = self.backtester.data.index[-1].strftime('%Y-%m-%d')
+        data_start = self.backtester.data['Date'].min().strftime('%Y-%m-%d')
+        data_end = self.backtester.data['Date'].max().strftime('%Y-%m-%d')
 
         # Determine performance status
         net_profit = overall_stats.get('淨利', 0)
@@ -93,9 +93,9 @@ class ReportGenerator:
 
 ## 📊 執行摘要 Executive Summary
 
-本報告基於台指期結算日傾向策略進行了全面的回測分析，涵蓋了從{self.backtester.data.index[0].strftime('%Y年%m月')}到{self.backtester.data.index[-1].strftime('%Y年%m月')}的完整交易週期。分析包含了基礎績效統計、進階風險指標、波動率分析、季節性模式以及多維度濾網分析。策略在此期間{'表現出色' if net_profit > 5 else '表現平穩' if net_profit > 0 else '需要優化'}，淨利達{net_profit:.2f}%，勝率{win_rate_str}。
+本報告基於台指期結算日傾向策略進行了全面的回測分析，涵蓋了從{self.backtester.data['Date'].min().strftime('%Y年%m月')}到{self.backtester.data['Date'].max().strftime('%Y年%m月')}的完整交易週期。分析包含了基礎績效統計、進階風險指標、波動率分析、季節性模式以及多維度濾網分析。策略在此期間{'表現出色' if net_profit > 5 else '表現平穩' if net_profit > 0 else '需要優化'}，淨利達{net_profit:.2f}%，勝率{win_rate_str}。
 
-This report provides a comprehensive backtesting analysis of Taiwan Futures settlement day pattern strategy, covering the complete trading cycle from {self.backtester.data.index[0].strftime('%B %Y')} to {self.backtester.data.index[-1].strftime('%B %Y')}. The analysis includes basic performance statistics, advanced risk indicators, volatility analysis, seasonal patterns, and multi-dimensional filter analysis. The strategy showed {'excellent' if net_profit > 5 else 'steady' if net_profit > 0 else 'mixed'} performance with a net profit of {net_profit:.2f}% and a win rate of {win_rate_str}.
+This report provides a comprehensive backtesting analysis of Taiwan Futures settlement day pattern strategy, covering the complete trading cycle from {self.backtester.data['Date'].min().strftime('%B %Y')} to {self.backtester.data['Date'].max().strftime('%B %Y')}. The analysis includes basic performance statistics, advanced risk indicators, volatility analysis, seasonal patterns, and multi-dimensional filter analysis. The strategy showed {'excellent' if net_profit > 5 else 'steady' if net_profit > 0 else 'mixed'} performance with a net profit of {net_profit:.2f}% and a win rate of {win_rate_str}.
 
 ---
 

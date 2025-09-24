@@ -16,7 +16,7 @@ df['到期月份_date'] = pd.to_datetime(df['到期月份(週別)'], format='%Y%
 # Group by 交易日期 and 交易時段, then keep only the row with the most recent 到期月份
 filtered_df = df.groupby(['交易日期', '交易時段']).apply(
     lambda group: group.loc[group['到期月份_date'].idxmax()] if not group['到期月份_date'].isna().all() else group.iloc[0]
-, include_groups=False).reset_index(drop=True)
+, include_groups=False).reset_index()
 
 # Drop the helper column
 filtered_df = filtered_df.drop('到期月份_date', axis=1)
