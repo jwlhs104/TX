@@ -967,7 +967,7 @@ class TaiwanFuturesBacktest:
             print(f"\n{filter_name}:")
             for condition, stats in filter_data.items():
                 if stats and stats.get('總次', 0) > 0:
-                    print(f"  {condition}: 勝率={stats.get('勝率', 'N/A')}, 筆均={stats.get('筆均', 0):.2f}%, 總次={stats.get('總次', 0)}")
+                    print(f"  {condition}: 淨利={stats.get('淨利', 0):.2f}%, 總獲利={stats.get('總獲利', 0):.2f}%, 總虧損={stats.get('總虧損', 0):.2f}%, 勝率={stats.get('勝率', 'N/A')}, 勝次={stats.get('勝次', 0)}, 敗次={stats.get('敗次', 0)}, 總次={stats.get('總次', 0)}")
                 else:
                     print(f"  {condition}: 無交易數據")
 
