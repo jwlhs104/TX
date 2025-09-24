@@ -23,9 +23,10 @@ plt.rcParams['font.sans-serif'] = ['Arial Unicode MS', 'SimHei', 'DejaVu Sans']
 plt.rcParams['axes.unicode_minus'] = False
 
 class TaiwanFuturesBacktest:
-    def __init__(self, start_date='2024-01-01', end_date='2024-12-31'):
+    def __init__(self, start_date='2017-05-16', end_date='2024-12-31', counting_period="weekly"):
         self.start_date = start_date
         self.end_date = end_date
+        self.counting_period = counting_period
         self.data = None
         self.settlement_dates = None
         self.results = []
@@ -34,7 +35,7 @@ class TaiwanFuturesBacktest:
         """
         Load Taiwan Futures data from filtered CSV file
         """
-        csv_path = '/Users/johnny/Desktop/JQC/TX/data/filtered_tx_2024.csv'
+        csv_path = '/Users/johnny/Desktop/JQC/TX/data/filtered_tx_all_years.csv'
         print(f"Loading Taiwan futures data from {csv_path}...")
 
         # Read CSV file
@@ -43,10 +44,6 @@ class TaiwanFuturesBacktest:
         # Check if data is empty
         if df.empty:
             raise ValueError("No data in CSV file")
-
-        # Parse date from 到期月份(週別) column - need to infer actual trading dates
-        # For now, create sequential trading dates for 2024
-        start_date = pd.to_datetime('2024-01-01')
 
         # Filter data to remove rows with missing closing prices
         df = df.dropna(subset=['收盤價'])
@@ -70,7 +67,6 @@ class TaiwanFuturesBacktest:
         print(f"Date range: {data['Date'].min().strftime('%Y-%m-%d')} to {data['Date'].max().strftime('%Y-%m-%d')}")
 
         self.data = data
-        print(data)
         return data
 
     def calculate_settlement_dates(self):
@@ -94,8 +90,12 @@ class TaiwanFuturesBacktest:
             if current_date.weekday() == 2:
                 # Check if this Wednesday exists in our trading data
                 if (self.data['Date'] == current_date).any():
-                    # Determine if it's weekly or monthly settlement
-                    # Monthly: Third Wednesday of the month
+                    if self.counting_period == "weekly":
+                        settlement_dates.append({
+                            'date': current_date,
+                            'type': self.counting_period
+                        })
+
                     month_start = current_date.replace(day=1)
                     wednesdays_in_month = []
 
@@ -108,11 +108,10 @@ class TaiwanFuturesBacktest:
 
                     # Check if current date is the third Wednesday
                     is_monthly = len(wednesdays_in_month) >= 3 and current_date == wednesdays_in_month[2]
-
-                    if is_monthly:
+                    if self.counting_period == "monthly" and is_monthly:
                         settlement_dates.append({
                             'date': current_date,
-                            'type': 'monthly' if is_monthly else 'weekly'
+                            'type': self.counting_period
                         })
 
             current_date += timedelta(days=1)
@@ -134,8 +133,7 @@ class TaiwanFuturesBacktest:
         ].sort_values('date')
 
         if len(prev_settlements) == 0:
-            # If no previous settlement, use a week before current settlement
-            opening_date = settlement_date - timedelta(days=30)
+            return None
         else:
             # Use the day after the previous settlement
             prev_settlement = prev_settlements.iloc[-1]['date']
@@ -373,7 +371,6 @@ class TaiwanFuturesBacktest:
         # 4. Settlement Type Analysis
         weekly = trades[trades['settlement_type'] == 'weekly']
         monthly = trades[trades['settlement_type'] == 'monthly']
-        print(monthly)
 
         filter_analysis['結算類型'] = {
             '週選': self.calculate_performance_stats(weekly),
@@ -833,8 +830,9 @@ def main():
 
     # Initialize backtester
     backtester = TaiwanFuturesBacktest(
-        start_date='2024-01-01',
-        end_date='2024-12-31'
+        start_date='2017-05-16',
+        end_date='2024-12-31',
+        counting_period="weekly"
     )
 
     # Run complete analysis
