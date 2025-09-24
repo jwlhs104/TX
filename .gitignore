@@ -3,4 +3,4 @@ __pycache__
 performance_analysis.png
 result.md
 taiwan_futures_backtest_results.csv
-data/*.csv
+data
