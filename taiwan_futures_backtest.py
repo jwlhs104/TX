@@ -141,7 +141,7 @@ class TaiwanFuturesBacktest:
             opening_date = prev_settlement + timedelta(days=1)
 
         # Find the next available trading day
-        while opening_date not in self.data.index and opening_date <= settlement_date:
+        while not (self.data['Date'] == opening_date).any() and opening_date < settlement_date:
             opening_date += timedelta(days=1)
 
         return opening_date if (self.data['Date'] == opening_date).any() else None
@@ -372,6 +372,7 @@ class TaiwanFuturesBacktest:
         # 4. Settlement Type Analysis
         weekly = trades[trades['settlement_type'] == 'weekly']
         monthly = trades[trades['settlement_type'] == 'monthly']
+        print(monthly)
 
         filter_analysis['結算類型'] = {
             '週選': self.calculate_performance_stats(weekly),

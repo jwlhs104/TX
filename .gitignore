@@ -1,2 +1,5 @@
 .DS_Store
 __pycache__
+performance_analysis.png
+result.md
+taiwan_futures_backtest_results.csv
