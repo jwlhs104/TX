@@ -109,10 +109,11 @@ class TaiwanFuturesBacktest:
                     # Check if current date is the third Wednesday
                     is_monthly = len(wednesdays_in_month) >= 3 and current_date == wednesdays_in_month[2]
 
-                    settlement_dates.append({
-                        'date': current_date,
-                        'type': 'monthly' if is_monthly else 'weekly'
-                    })
+                    if is_monthly:
+                        settlement_dates.append({
+                            'date': current_date,
+                            'type': 'monthly' if is_monthly else 'weekly'
+                        })
 
             current_date += timedelta(days=1)
 
@@ -134,7 +135,7 @@ class TaiwanFuturesBacktest:
 
         if len(prev_settlements) == 0:
             # If no previous settlement, use a week before current settlement
-            opening_date = settlement_date - timedelta(days=7)
+            opening_date = settlement_date - timedelta(days=30)
         else:
             # Use the day after the previous settlement
             prev_settlement = prev_settlements.iloc[-1]['date']
