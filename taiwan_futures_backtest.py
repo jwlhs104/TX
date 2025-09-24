@@ -303,7 +303,7 @@ class TaiwanFuturesBacktest:
             # Calculate additional indicators
             prev_day_data = self.data[self.data['Date'] == prev_day].iloc[0]
             is_red_candle = prev_day_data['Close'] > prev_day_data['Open']
-            is_high_open = settlement_open > prev_close
+            is_high_open = settlement_open > prev_day_data['Close']
 
             # Calculate K-line body size
             body_size = abs(prev_day_data['Close'] - prev_day_data['Open'])
