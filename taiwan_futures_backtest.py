@@ -13,6 +13,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from datetime import datetime, timedelta
 import warnings
+import argparse
 warnings.filterwarnings('ignore')
 
 # Import the report generator module
@@ -23,10 +24,12 @@ plt.rcParams['font.sans-serif'] = ['Arial Unicode MS', 'SimHei', 'DejaVu Sans']
 plt.rcParams['axes.unicode_minus'] = False
 
 class TaiwanFuturesBacktest:
-    def __init__(self, start_date='2017-05-16', end_date='2024-12-31', counting_period="weekly"):
+    def __init__(self, start_date='2017-05-16', end_date='2024-12-31', counting_period="weekly", opening_price_calc="standard", prev_close_calc="standard"):
         self.start_date = start_date
         self.end_date = end_date
         self.counting_period = counting_period
+        self.opening_price_calc = opening_price_calc
+        self.prev_close_calc = prev_close_calc
         self.data = None
         self.settlement_dates = None
         self.results = []
@@ -146,6 +149,39 @@ class TaiwanFuturesBacktest:
 
         return opening_date if (self.data['Date'] == opening_date).any() else None
 
+    def get_opening_price(self, opening_day):
+        """
+        Get opening price based on calculation variation
+
+        Variations:
+        - standard: Regular session open price (一般)
+        - night: Night session open price (夜盤)
+        """
+        if self.opening_price_calc == "standard":
+            return self.data[(self.data['Date'] == opening_day) & (self.data['Type'] == '一般')].iloc[0]['Open']
+        elif self.opening_price_calc == "night":
+            return self.data[(self.data['Date'] == opening_day) & (self.data['Type'] == '盤後')].iloc[0]['Open']
+        else:
+            raise Exception(f"opening_price_calc: {self.opening_price_calc} not supported, currently support standard and night")
+
+    def get_prev_close(self, prev_day, settlement_day):
+        """
+        Get previous close price based on calculation variation
+
+        Variations:
+        - standard: Regular session close price (一般)
+        - night: Night session close price (夜盤)
+        - settlement_open: Use settlement day's opening price
+        """
+        if self.prev_close_calc == "standard":
+            return self.data[(self.data['Date'] == prev_day) & (self.data['Type'] == '一般')].iloc[0]['Close']
+        elif self.prev_close_calc == "night":
+            return self.data[(self.data['Date'] == settlement_day) & (self.data['Type'] == '盤後')].iloc[0]['Close']
+        elif self.prev_close_calc == "settlement_open":
+            return self.data[(self.data['Date'] == settlement_day) & (self.data['Type'] == '一般')].iloc[0]['Open']
+        else:
+            raise Exception(f"prev_close_calc: {self.prev_close_calc} not supported, currently support standard, night, and settlement_open")
+
     def run_backtest(self):
         """
         Run the complete backtesting strategy
@@ -180,12 +216,14 @@ class TaiwanFuturesBacktest:
             if not (self.data['Date'] == prev_day).any():
                 continue
 
-            # Calculate trend indicator
-            opening_price = self.data[(self.data['Date'] == opening_day) & (self.data['Type'] == '盤後')].iloc[0]['Open']
-            prev_close = self.data[(self.data['Date'] == settlement_date) & (self.data['Type'] == '盤後')].iloc[0]['Close']
+            # Get settlement day data first (needed for settlement_open variation)
+
+            # Calculate trend indicator using the specified variations
+            opening_price = self.get_opening_price(opening_day)
+            prev_close = self.get_prev_close(prev_day, settlement_date)
             trend_indicator = prev_close - opening_price
 
-            # Get settlement day data
+            # Get additional settlement day data
             settlement_row = self.data[self.data['Date'] == settlement_date].iloc[0]
             settlement_open = settlement_row['Open']
             settlement_close = settlement_row['Close']
@@ -826,14 +864,35 @@ def main():
     """
     Main execution function
     """
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(description='台指期結算日傾向回測系統 Taiwan Futures Settlement Day Backtest System')
+    parser.add_argument('--opening_price_calc', choices=['standard', 'night'], default='standard',
+                        help='Opening price calculation method: standard (一般) or night (夜盤)')
+    parser.add_argument('--prev_close_calc', choices=['standard', 'night', 'settlement_open'], default='standard',
+                        help='Previous close calculation method: standard (一般), night (夜盤), or settlement_open (結算日開盤價)')
+    parser.add_argument('--counting_period', choices=['weekly', 'monthly'], default='weekly',
+                        help='Counting period: weekly or monthly')
+    parser.add_argument('--start_date', default='2017-05-16',
+                        help='Start date in YYYY-MM-DD format')
+    parser.add_argument('--end_date', default='2024-12-31',
+                        help='End date in YYYY-MM-DD format')
+
+    args = parser.parse_args()
+
     print("台指期結算日傾向回測系統 Taiwan Futures Settlement Day Backtest System")
     print("="*80)
+    print(f"Opening price calculation: {args.opening_price_calc}")
+    print(f"Previous close calculation: {args.prev_close_calc}")
+    print(f"Counting period: {args.counting_period}")
+    print(f"Date range: {args.start_date} to {args.end_date}")
 
     # Initialize backtester
     backtester = TaiwanFuturesBacktest(
-        start_date='2017-05-16',
-        end_date='2024-12-31',
-        counting_period="weekly"
+        start_date=args.start_date,
+        end_date=args.end_date,
+        counting_period=args.counting_period,
+        opening_price_calc=args.opening_price_calc,
+        prev_close_calc=args.prev_close_calc
     )
 
     # Run complete analysis
