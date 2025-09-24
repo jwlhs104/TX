@@ -1,29 +1,54 @@
 import pandas as pd
 from datetime import datetime
+import glob
 
-df = pd.read_csv("data/2024_fut.csv", index_col=False, encoding="utf-8", low_memory=False)
+# Get all CSV files from 2017-2024
+csv_files = sorted([f"data/{year}_fut.csv" for year in range(2017, 2025)])
+print(f"Processing files: {csv_files}")
 
-# Filter for TX contracts only
-df = df[df["契約"] == "TX"]
-print(f"Total TX rows: {len(df)}")
+all_filtered_data = []
 
-# Convert 交易日期 to datetime for proper sorting
-df['交易日期'] = pd.to_datetime(df['交易日期'])
+for csv_file in csv_files:
+    year = csv_file.split('/')[-1][:4]
+    print(f"\nProcessing {year} data...")
 
-# Convert 到期月份(週別) to datetime for comparison (assuming YYYYMM format)
-df['到期月份_date'] = pd.to_datetime(df['到期月份(週別)'], format='%Y%m', errors='coerce')
+    df = pd.read_csv(csv_file, index_col=False, encoding="utf-8", low_memory=False)
 
-# Group by 交易日期 and 交易時段, then keep only the row with the most recent 到期月份
-filtered_df = df.groupby(['交易日期', '交易時段']).apply(
-    lambda group: group.loc[group['到期月份_date'].idxmax()] if not group['到期月份_date'].isna().all() else group.iloc[0]
-, include_groups=False).reset_index()
+    # Filter for TX contracts only
+    df = df[df["契約"] == "TX"]
+    print(f"Total TX rows for {year}: {len(df)}")
 
-# Drop the helper column
-filtered_df = filtered_df.drop('到期月份_date', axis=1)
+    # Convert 交易日期 to datetime for proper sorting
+    df['交易日期'] = pd.to_datetime(df['交易日期'])
 
-print(f"Filtered rows: {len(filtered_df)}")
+    # Convert 到期月份(週別) to datetime for comparison (assuming YYYYMM format)
+    df['到期月份_date'] = pd.to_datetime(df['到期月份(週別)'], format='%Y%m', errors='coerce')
+
+    # Group by 交易日期 and 交易時段, then keep only the row with the most recent 到期月份
+    filtered_df = df.groupby(['交易日期', '交易時段']).apply(
+        lambda group: group.loc[group['到期月份_date'].idxmax()] if not group['到期月份_date'].isna().all() else group.iloc[0]
+    , include_groups=False).reset_index()
+
+    # Drop the helper column
+    filtered_df = filtered_df.drop('到期月份_date', axis=1)
+
+    print(f"Filtered rows for {year}: {len(filtered_df)}")
+    all_filtered_data.append(filtered_df)
+
+# Merge all filtered data
+print("\nMerging all filtered data...")
+merged_df = pd.concat(all_filtered_data, ignore_index=True)
+
+# Sort by date (oldest to latest)
+merged_df = merged_df.sort_values('交易日期').reset_index(drop=True)
+
+print(f"\nTotal merged rows: {len(merged_df)}")
+print(f"Date range: {merged_df['交易日期'].min()} to {merged_df['交易日期'].max()}")
 print("\nFirst few rows:")
-print(filtered_df.head(10))
+print(merged_df.head(10))
+print("\nLast few rows:")
+print(merged_df.tail(10))
 
-# Save the filtered data
-filtered_df.to_csv("data/filtered_tx_2024.csv", index=False, encoding="utf-8")
+# Save the merged filtered data
+merged_df.to_csv("data/filtered_tx_all_years.csv", index=False, encoding="utf-8")
+print(f"\nSaved merged data to: data/filtered_tx_all_years.csv")
