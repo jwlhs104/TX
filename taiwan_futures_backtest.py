@@ -16,6 +16,9 @@ from datetime import datetime, timedelta
 import warnings
 warnings.filterwarnings('ignore')
 
+# Import the report generator module
+from report_generator import ReportGenerator
+
 # Set Chinese font for matplotlib
 plt.rcParams['font.sans-serif'] = ['Arial Unicode MS', 'SimHei', 'DejaVu Sans']
 plt.rcParams['axes.unicode_minus'] = False
@@ -882,6 +885,19 @@ class TaiwanFuturesBacktest:
             print("No results to save.")
             return None
 
+    def save_results_summary_to_md(self, filename='result.md'):
+        """
+        Save backtest results summary and performance analysis to markdown file
+
+        Args:
+            filename: Output markdown filename
+
+        Returns:
+            str: Path to saved file or None if failed
+        """
+        generator = ReportGenerator(self)
+        return generator.save_results_summary_to_md(filename)
+
 def main():
     """
     Main execution function
@@ -926,6 +942,10 @@ def main():
         # Save results
         print("\n7. 儲存結果 Saving Results...")
         backtester.save_detailed_results()
+
+        # Save markdown summary
+        print("\n8. 儲存報告摘要 Saving Report Summary...")
+        backtester.save_results_summary_to_md()
 
         return {
             'backtester': backtester,
