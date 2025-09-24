@@ -26,7 +26,7 @@ for csv_file in csv_files:
 
     # Group by 交易日期 and 交易時段, then keep only the row with the most recent 到期月份
     filtered_df = df.groupby(['交易日期', '交易時段']).apply(
-        lambda group: group.loc[group['到期月份_date'].idxmax()] if not group['到期月份_date'].isna().all() else group.iloc[0]
+        lambda group: group.loc[group['到期月份_date'].idxmin()] if not group['到期月份_date'].isna().all() else group.iloc[0]
     , include_groups=False).reset_index()
 
     # Drop the helper column
@@ -39,8 +39,17 @@ for csv_file in csv_files:
 print("\nMerging all filtered data...")
 merged_df = pd.concat(all_filtered_data, ignore_index=True)
 
-# Sort by date (oldest to latest)
-merged_df = merged_df.sort_values('交易日期').reset_index(drop=True)
+# Sort by date (oldest to latest) and trading session (一般 first, then 盤後)
+trading_session_order = ['一般', '盤後']
+merged_df['交易時段_sort'] = merged_df['交易時段'].map({session: i for i, session in enumerate(trading_session_order)})
+merged_df = merged_df.sort_values(['交易日期', '交易時段_sort']).reset_index(drop=True)
+merged_df = merged_df.drop('交易時段_sort', axis=1)
+
+# Drop dates that only have '一般' session and not '盤後' session
+session_counts = merged_df.groupby('交易日期')['交易時段'].apply(set)
+dates_with_only_general = session_counts[session_counts == {'一般'}].index
+print(f"\nDropping {len(dates_with_only_general)} dates that only have '一般' session")
+merged_df = merged_df[~merged_df['交易日期'].isin(dates_with_only_general)]
 
 print(f"\nTotal merged rows: {len(merged_df)}")
 print(f"Date range: {merged_df['交易日期'].min()} to {merged_df['交易日期'].max()}")
