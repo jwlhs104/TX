@@ -378,8 +378,8 @@ class TaiwanFuturesBacktest:
         profit_loss_ratio = abs(avg_profit / avg_loss) if avg_loss != 0 else 0
 
         # Event rate (percentage of days with signals)
-        total_settlement_days = len(self.settlement_dates) if self.settlement_dates is not None else total_trades
-        event_rate = (total_trades / total_settlement_days * 100) if total_settlement_days > 0 else 0
+        total_unique_days = len(self.data['Date'].unique()) if self.data is not None else total_trades
+        event_rate = (total_trades / total_unique_days * 100) if total_unique_days > 0 else 0
 
         # Kelly Criterion: f = (bp - q) / b, where b = odds, p = win rate, q = loss rate
         if profit_loss_ratio > 0 and win_rate > 0:
