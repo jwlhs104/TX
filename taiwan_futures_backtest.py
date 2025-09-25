@@ -1051,9 +1051,9 @@ class TaiwanFuturesBacktest:
                      'b-', linewidth=2, label='P&L', alpha=0.8, zorder=2)
         ax8_twin.axhline(y=0, color='gray', linestyle='-', alpha=0.5, zorder=1)
 
-        ax8.set_title('Body Size vs P&L Analysis', fontsize=12, fontweight='bold')
+        ax8.set_title('Candle Body Size vs P&L Analysis', fontsize=12, fontweight='bold')
         ax8.set_xlabel('Proportion of Trades')
-        ax8.set_ylabel('Body Size (Points)', color='red')
+        ax8.set_ylabel('Candle Body Size (Points)', color='red')
         ax8_twin.set_ylabel('P&L (%)', color='blue')
 
         # Color the y-axis labels
