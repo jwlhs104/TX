@@ -857,15 +857,40 @@ class TaiwanFuturesBacktest:
         # Create twin axis for dual plotting
         ax6_twin = ax6.twinx()
 
+        # Get data for plotting
+        signed_body_ratios = body_ratio_df['signed_body_ratio'].values
+        pnl_values = body_ratio_df['pnl_pct'].values
+
         # Plot body ratio with red dotted line
-        ax6.plot(proportions, body_ratio_df['signed_body_ratio'].values,
+        ax6.plot(proportions, signed_body_ratios,
                 'r--', linewidth=2, label='Body Ratio', alpha=0.8)
         ax6.axhline(y=0, color='gray', linestyle='-', alpha=0.5)
 
-        # Plot P&L with blue line
-        ax6_twin.plot(proportions, body_ratio_df['pnl_pct'].values,
-                     'b-', linewidth=2, label='P&L', alpha=0.8)
-        ax6_twin.axhline(y=0, color='gray', linestyle='-', alpha=0.5)
+        # Find where red dotted line crosses zero for vertical line
+        zero_crossing_idx = None
+        for i in range(len(signed_body_ratios) - 1):
+            if signed_body_ratios[i] <= 0 <= signed_body_ratios[i + 1]:
+                zero_crossing_idx = i + (0 - signed_body_ratios[i]) / (signed_body_ratios[i + 1] - signed_body_ratios[i])
+                break
+
+        # Add vertical line where red line crosses zero
+        if zero_crossing_idx is not None:
+            zero_crossing_x = zero_crossing_idx / (len(proportions) - 1) if len(proportions) > 1 else 0
+            ax6.axvline(x=zero_crossing_x, color='black', linestyle='-', linewidth=1, alpha=0.7)
+
+        # Add upper and lower background regions divided at y=0
+        pnl_max = np.max(pnl_values) if len(pnl_values) > 0 else 10
+        pnl_min = np.min(pnl_values) if len(pnl_values) > 0 else -10
+
+        # Upper region (positive P&L area) - light green
+        ax6_twin.axhspan(0, pnl_max, color='lightgreen', alpha=0.2, zorder=0)
+        # Lower region (negative P&L area) - light coral
+        ax6_twin.axhspan(pnl_min, 0, color='lightcoral', alpha=0.2, zorder=0)
+
+        # Plot P&L with blue line (on top of background)
+        ax6_twin.plot(proportions, pnl_values,
+                     'b-', linewidth=2, label='P&L', alpha=0.8, zorder=2)
+        ax6_twin.axhline(y=0, color='gray', linestyle='-', alpha=0.5, zorder=1)
 
         ax6.set_title('Body Ratio vs P&L Analysis', fontsize=12, fontweight='bold')
         ax6.set_xlabel('Proportion of Trades')
@@ -906,15 +931,40 @@ class TaiwanFuturesBacktest:
         # Create twin axis for dual plotting
         ax7_twin = ax7.twinx()
 
+        # Get data for plotting
+        trend_indicators = trend_indicator_df['trend_indicator'].values
+        pnl_values = trend_indicator_df['pnl_pct'].values
+
         # Plot trend indicator with red dotted line
-        ax7.plot(proportions, trend_indicator_df['trend_indicator'].values,
+        ax7.plot(proportions, trend_indicators,
                 'r--', linewidth=2, label='Trend Indicator', alpha=0.8)
         ax7.axhline(y=0, color='gray', linestyle='-', alpha=0.5)
 
-        # Plot P&L with blue line
-        ax7_twin.plot(proportions, trend_indicator_df['pnl_pct'].values,
-                     'b-', linewidth=2, label='P&L', alpha=0.8)
-        ax7_twin.axhline(y=0, color='gray', linestyle='-', alpha=0.5)
+        # Find where red dotted line crosses zero for vertical line
+        zero_crossing_idx = None
+        for i in range(len(trend_indicators) - 1):
+            if trend_indicators[i] <= 0 <= trend_indicators[i + 1]:
+                zero_crossing_idx = i + (0 - trend_indicators[i]) / (trend_indicators[i + 1] - trend_indicators[i])
+                break
+
+        # Add vertical line where red line crosses zero
+        if zero_crossing_idx is not None:
+            zero_crossing_x = zero_crossing_idx / (len(proportions) - 1) if len(proportions) > 1 else 0
+            ax7.axvline(x=zero_crossing_x, color='black', linestyle='-', linewidth=1, alpha=0.7)
+
+        # Add upper and lower background regions divided at y=0
+        pnl_max = np.max(pnl_values) if len(pnl_values) > 0 else 10
+        pnl_min = np.min(pnl_values) if len(pnl_values) > 0 else -10
+
+        # Upper region (positive P&L area) - light green
+        ax7_twin.axhspan(0, pnl_max, color='lightgreen', alpha=0.2, zorder=0)
+        # Lower region (negative P&L area) - light coral
+        ax7_twin.axhspan(pnl_min, 0, color='lightcoral', alpha=0.2, zorder=0)
+
+        # Plot P&L with blue line (on top of background)
+        ax7_twin.plot(proportions, pnl_values,
+                     'b-', linewidth=2, label='P&L', alpha=0.8, zorder=2)
+        ax7_twin.axhline(y=0, color='gray', linestyle='-', alpha=0.5, zorder=1)
 
         ax7.set_title('Trend Indicator vs P&L Analysis', fontsize=12, fontweight='bold')
         ax7.set_xlabel('Proportion of Trades')
@@ -966,15 +1016,40 @@ class TaiwanFuturesBacktest:
         # Create twin axis for dual plotting
         ax8_twin = ax8.twinx()
 
+        # Get data for plotting
+        signed_body_sizes = candle_df['signed_body_size'].values
+        pnl_values = candle_df['pnl_pct'].values
+
         # Plot body size with red dotted line
-        ax8.plot(proportions, candle_df['signed_body_size'].values,
+        ax8.plot(proportions, signed_body_sizes,
                 'r--', linewidth=2, label='Body Size', alpha=0.8)
         ax8.axhline(y=0, color='gray', linestyle='-', alpha=0.5)
 
-        # Plot P&L with blue line
-        ax8_twin.plot(proportions, candle_df['pnl_pct'].values,
-                     'b-', linewidth=2, label='P&L', alpha=0.8)
-        ax8_twin.axhline(y=0, color='gray', linestyle='-', alpha=0.5)
+        # Find where red dotted line crosses zero for vertical line
+        zero_crossing_idx = None
+        for i in range(len(signed_body_sizes) - 1):
+            if signed_body_sizes[i] <= 0 <= signed_body_sizes[i + 1]:
+                zero_crossing_idx = i + (0 - signed_body_sizes[i]) / (signed_body_sizes[i + 1] - signed_body_sizes[i])
+                break
+
+        # Add vertical line where red line crosses zero
+        if zero_crossing_idx is not None:
+            zero_crossing_x = zero_crossing_idx / (len(proportions) - 1) if len(proportions) > 1 else 0
+            ax8.axvline(x=zero_crossing_x, color='black', linestyle='-', linewidth=1, alpha=0.7)
+
+        # Add upper and lower background regions divided at y=0
+        pnl_max = np.max(pnl_values) if len(pnl_values) > 0 else 10
+        pnl_min = np.min(pnl_values) if len(pnl_values) > 0 else -10
+
+        # Upper region (positive P&L area) - light green
+        ax8_twin.axhspan(0, pnl_max, color='lightgreen', alpha=0.2, zorder=0)
+        # Lower region (negative P&L area) - light coral
+        ax8_twin.axhspan(pnl_min, 0, color='lightcoral', alpha=0.2, zorder=0)
+
+        # Plot P&L with blue line (on top of background)
+        ax8_twin.plot(proportions, pnl_values,
+                     'b-', linewidth=2, label='P&L', alpha=0.8, zorder=2)
+        ax8_twin.axhline(y=0, color='gray', linestyle='-', alpha=0.5, zorder=1)
 
         ax8.set_title('Body Size vs P&L Analysis', fontsize=12, fontweight='bold')
         ax8.set_xlabel('Proportion of Trades')
@@ -1025,15 +1100,40 @@ class TaiwanFuturesBacktest:
         # Create twin axis for dual plotting
         ax9_twin = ax9.twinx()
 
+        # Get data for plotting
+        open_high_low_values = open_high_low_df['open_high_low'].values
+        pnl_values = open_high_low_df['pnl_pct'].values
+
         # Plot open high/low indicator with red dotted line
-        ax9.plot(proportions, open_high_low_df['open_high_low'].values,
+        ax9.plot(proportions, open_high_low_values,
                 'r--', linewidth=2, label='Open High/Low', alpha=0.8)
         ax9.axhline(y=0, color='gray', linestyle='-', alpha=0.5)
 
-        # Plot P&L with blue line
-        ax9_twin.plot(proportions, open_high_low_df['pnl_pct'].values,
-                     'b-', linewidth=2, label='P&L', alpha=0.8)
-        ax9_twin.axhline(y=0, color='gray', linestyle='-', alpha=0.5)
+        # Find where red dotted line crosses zero for vertical line
+        zero_crossing_idx = None
+        for i in range(len(open_high_low_values) - 1):
+            if open_high_low_values[i] <= 0 <= open_high_low_values[i + 1]:
+                zero_crossing_idx = i + (0 - open_high_low_values[i]) / (open_high_low_values[i + 1] - open_high_low_values[i])
+                break
+
+        # Add vertical line where red line crosses zero
+        if zero_crossing_idx is not None:
+            zero_crossing_x = zero_crossing_idx / (len(proportions) - 1) if len(proportions) > 1 else 0
+            ax9.axvline(x=zero_crossing_x, color='black', linestyle='-', linewidth=1, alpha=0.7)
+
+        # Add upper and lower background regions divided at y=0
+        pnl_max = np.max(pnl_values) if len(pnl_values) > 0 else 10
+        pnl_min = np.min(pnl_values) if len(pnl_values) > 0 else -10
+
+        # Upper region (positive P&L area) - light green
+        ax9_twin.axhspan(0, pnl_max, color='lightgreen', alpha=0.2, zorder=0)
+        # Lower region (negative P&L area) - light coral
+        ax9_twin.axhspan(pnl_min, 0, color='lightcoral', alpha=0.2, zorder=0)
+
+        # Plot P&L with blue line (on top of background)
+        ax9_twin.plot(proportions, pnl_values,
+                     'b-', linewidth=2, label='P&L', alpha=0.8, zorder=2)
+        ax9_twin.axhline(y=0, color='gray', linestyle='-', alpha=0.5, zorder=1)
 
         ax9.set_title('Open High/Low vs P&L Analysis', fontsize=12, fontweight='bold')
         ax9.set_xlabel('Proportion of Trades')
