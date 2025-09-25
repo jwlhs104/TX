@@ -883,23 +883,54 @@ class TaiwanFuturesBacktest:
 
         ax6.grid(True, alpha=0.3)
 
-        # 7. Filter Analysis - Trend Direction
+        # 7. Trend Indicator vs P&L Analysis
         ax7 = plt.subplot(3, 3, 7)
-        trend_stats = trades.groupby('trend_direction').agg({
-            'pnl_pct': ['mean', lambda x: (x > 0).sum() / len(x) * 100, 'count']
-        }).round(2)
-        trend_stats.columns = ['Avg P&L', 'Win Rate', 'Count']
 
-        bars = ax7.bar(trend_stats.index, trend_stats['Win Rate'], alpha=0.7,
-                      color=['red' if x < 50 else 'green' for x in trend_stats['Win Rate']])
-        ax7.set_title('Win Rate by Trend Direction', fontsize=12, fontweight='bold')
-        ax7.set_ylabel('Win Rate (%)')
-        ax7.set_ylim(0, 100)
+        # Calculate trend indicator for sorting
+        trend_indicator_data = []
+        for _, trade in trades.iterrows():
+            trend_indicator_data.append({
+                'pnl_pct': trade['pnl_pct'],
+                'trend_indicator': trade['trend_indicator']
+            })
 
-        for i, (bar, count) in enumerate(zip(bars, trend_stats['Count'])):
-            height = bar.get_height()
-            ax7.text(bar.get_x() + bar.get_width()/2., height + 1,
-                    f'{height:.1f}%\n(n={count})', ha='center', va='bottom')
+        trend_indicator_df = pd.DataFrame(trend_indicator_data)
+
+        # Sort by trend indicator (smallest to largest)
+        trend_indicator_df = trend_indicator_df.sort_values('trend_indicator')
+
+        # Calculate proportion of trades (0 to 1)
+        n_trades = len(trend_indicator_df)
+        proportions = np.arange(n_trades) / (n_trades - 1) if n_trades > 1 else [0]
+
+        # Create twin axis for dual plotting
+        ax7_twin = ax7.twinx()
+
+        # Plot trend indicator with red dotted line
+        ax7.plot(proportions, trend_indicator_df['trend_indicator'].values,
+                'r--', linewidth=2, label='Trend Indicator', alpha=0.8)
+        ax7.axhline(y=0, color='gray', linestyle='-', alpha=0.5)
+
+        # Plot P&L with blue line
+        ax7_twin.plot(proportions, trend_indicator_df['pnl_pct'].values,
+                     'b-', linewidth=2, label='P&L', alpha=0.8)
+        ax7_twin.axhline(y=0, color='gray', linestyle='-', alpha=0.5)
+
+        ax7.set_title('Trend Indicator vs P&L Analysis', fontsize=12, fontweight='bold')
+        ax7.set_xlabel('Proportion of Trades')
+        ax7.set_ylabel('Trend Indicator (Points)', color='red')
+        ax7_twin.set_ylabel('P&L (%)', color='blue')
+
+        # Color the y-axis labels
+        ax7.tick_params(axis='y', labelcolor='red')
+        ax7_twin.tick_params(axis='y', labelcolor='blue')
+
+        # Add legends
+        lines1, labels1 = ax7.get_legend_handles_labels()
+        lines2, labels2 = ax7_twin.get_legend_handles_labels()
+        ax7.legend(lines1 + lines2, labels1 + labels2, loc='upper left')
+
+        ax7.grid(True, alpha=0.3)
 
         # 8. Candle Size Analysis (using body_size)
         ax8 = plt.subplot(3, 3, 8)
@@ -913,23 +944,17 @@ class TaiwanFuturesBacktest:
             prev_day = trade['prev_day']
             prev_day_data = self.data[self.data['Date'] == prev_day].iloc[0]
 
-            body_size = abs(prev_day_data['Close'] - prev_day_data['Open'])
-            total_range = prev_day_data['High'] - prev_day_data['Low']
-            body_ratio = body_size / total_range if total_range > 0 else 0
+            signed_body_size = prev_day_data['Close'] - prev_day_data['Open']
 
             # Determine if it's red or black candle and assign signed body size
-            is_red = prev_day_data['Close'] > prev_day_data['Open']
-            signed_body_size = body_size if is_red else -body_size
 
             candle_data.append({
                 'pnl_pct': trade['pnl_pct'],
                 'signed_body_size': signed_body_size,
-                'body_size': body_size,
-                'body_ratio': body_ratio,
-                'is_red_candle': is_red
             })
 
         candle_df = pd.DataFrame(candle_data)
+        print(candle_df[candle_df['pnl_pct']>3])
 
         # Sort by signed body size (largest black to largest red)
         candle_df = candle_df.sort_values('signed_body_size')
