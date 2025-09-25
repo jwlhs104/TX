@@ -992,27 +992,64 @@ class TaiwanFuturesBacktest:
 
         ax8.grid(True, alpha=0.3)
 
-        # 9. Risk-Return Scatter
+        # 9. Open High/Low vs P&L Analysis
         ax9 = plt.subplot(3, 3, 9)
-        seasonal_analysis = self.analyze_seasonal_patterns()
 
-        if 'yearly' in seasonal_analysis:
-            yearly_data = seasonal_analysis['yearly']
-            years = list(yearly_data.keys())
-            returns = [yearly_data[year]['total_pnl'] for year in years]
-            win_rates = [yearly_data[year]['win_rate'] for year in years]
+        # Calculate open high/low indicator for sorting
+        open_high_low_data = []
+        for _, trade in trades.iterrows():
+            settlement_day = trade['settlement_date']
+            prev_day = trade['prev_day']
 
-            scatter = ax9.scatter(win_rates, returns, s=60, alpha=0.7, c=years, cmap='viridis')
-            ax9.axhline(y=0, color='red', linestyle='--', alpha=0.7)
-            ax9.axvline(x=50, color='red', linestyle='--', alpha=0.7)
-            ax9.set_title('Annual Risk-Return Profile', fontsize=12, fontweight='bold')
-            ax9.set_xlabel('Win Rate (%)')
-            ax9.set_ylabel('Total P&L (%)')
-            ax9.grid(True, alpha=0.3)
+            # Get settlement day data
+            settlement_day_data = self.data[self.data['Date'] == settlement_day].iloc[0]
+            prev_day_data = self.data[self.data['Date'] == prev_day].iloc[0]
 
-            # Add colorbar
-            cbar = plt.colorbar(scatter, ax=ax9)
-            cbar.set_label('Year')
+            # Calculate open high/low indicator (settlement open - prev close)
+            open_high_low = settlement_day_data['Open'] - prev_day_data['Close']
+
+            open_high_low_data.append({
+                'pnl_pct': trade['pnl_pct'],
+                'open_high_low': open_high_low
+            })
+
+        open_high_low_df = pd.DataFrame(open_high_low_data)
+
+        # Sort by open high/low indicator (smallest to largest)
+        open_high_low_df = open_high_low_df.sort_values('open_high_low')
+
+        # Calculate proportion of trades (0 to 1)
+        n_trades = len(open_high_low_df)
+        proportions = np.arange(n_trades) / (n_trades - 1) if n_trades > 1 else [0]
+
+        # Create twin axis for dual plotting
+        ax9_twin = ax9.twinx()
+
+        # Plot open high/low indicator with red dotted line
+        ax9.plot(proportions, open_high_low_df['open_high_low'].values,
+                'r--', linewidth=2, label='Open High/Low', alpha=0.8)
+        ax9.axhline(y=0, color='gray', linestyle='-', alpha=0.5)
+
+        # Plot P&L with blue line
+        ax9_twin.plot(proportions, open_high_low_df['pnl_pct'].values,
+                     'b-', linewidth=2, label='P&L', alpha=0.8)
+        ax9_twin.axhline(y=0, color='gray', linestyle='-', alpha=0.5)
+
+        ax9.set_title('Open High/Low vs P&L Analysis', fontsize=12, fontweight='bold')
+        ax9.set_xlabel('Proportion of Trades')
+        ax9.set_ylabel('Open High/Low (Points)', color='red')
+        ax9_twin.set_ylabel('P&L (%)', color='blue')
+
+        # Color the y-axis labels
+        ax9.tick_params(axis='y', labelcolor='red')
+        ax9_twin.tick_params(axis='y', labelcolor='blue')
+
+        # Add legends
+        lines1, labels1 = ax9.get_legend_handles_labels()
+        lines2, labels2 = ax9_twin.get_legend_handles_labels()
+        ax9.legend(lines1 + lines2, labels1 + labels2, loc='upper left')
+
+        ax9.grid(True, alpha=0.3)
 
         plt.tight_layout()
 
