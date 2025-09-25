@@ -821,30 +821,67 @@ class TaiwanFuturesBacktest:
         ax5.set_ylabel('Drawdown (%)')
         ax5.grid(True, alpha=0.3)
 
-        # 6. Quarterly Performance
+        # 6. Body Ratio Analysis
         ax6 = plt.subplot(3, 3, 6)
-        trades['quarter'] = trades['settlement_date'].dt.quarter
-        quarterly_stats = trades.groupby('quarter').agg({
-            'pnl_pct': ['mean', lambda x: (x > 0).sum() / len(x) * 100]
-        }).round(2)
-        quarterly_stats.columns = ['Avg P&L', 'Win Rate']
 
-        x = quarterly_stats.index
-        width = 0.35
+        # Calculate body ratio for sorting (body size relative to total range)
+        body_ratio_data = []
+        for _, trade in trades.iterrows():
+            prev_day = trade['prev_day']
+            prev_day_data = self.data[self.data['Date'] == prev_day].iloc[0]
+
+            body_size = abs(prev_day_data['Close'] - prev_day_data['Open'])
+            total_range = prev_day_data['High'] - prev_day_data['Low']
+            body_ratio = body_size / total_range if total_range > 0 else 0
+
+            # Determine if it's red or black candle and assign signed body ratio
+            is_red = prev_day_data['Close'] > prev_day_data['Open']
+            signed_body_ratio = body_ratio if is_red else -body_ratio
+
+            body_ratio_data.append({
+                'pnl_pct': trade['pnl_pct'],
+                'signed_body_ratio': signed_body_ratio,
+                'body_ratio': body_ratio,
+                'is_red_candle': is_red
+            })
+
+        body_ratio_df = pd.DataFrame(body_ratio_data)
+
+        # Sort by signed body ratio (largest black to largest red)
+        body_ratio_df = body_ratio_df.sort_values('signed_body_ratio')
+
+        # Calculate proportion of trades (0 to 1)
+        n_trades = len(body_ratio_df)
+        proportions = np.arange(n_trades) / (n_trades - 1) if n_trades > 1 else [0]
+
+        # Create twin axis for dual plotting
         ax6_twin = ax6.twinx()
 
-        bars1 = ax6.bar([i - width/2 for i in x], quarterly_stats['Avg P&L'],
-                       width, label='Avg P&L (%)', alpha=0.7, color='blue')
-        bars2 = ax6_twin.bar([i + width/2 for i in x], quarterly_stats['Win Rate'],
-                            width, label='Win Rate (%)', alpha=0.7, color='orange')
+        # Plot body ratio with red dotted line
+        ax6.plot(proportions, body_ratio_df['signed_body_ratio'].values,
+                'r--', linewidth=2, label='Body Ratio', alpha=0.8)
+        ax6.axhline(y=0, color='gray', linestyle='-', alpha=0.5)
 
-        ax6.set_title('Quarterly Performance', fontsize=12, fontweight='bold')
-        ax6.set_xlabel('Quarter')
-        ax6.set_ylabel('Average P&L (%)', color='blue')
-        ax6_twin.set_ylabel('Win Rate (%)', color='orange')
-        ax6.set_xticks(x)
-        ax6.legend(loc='upper left')
-        ax6_twin.legend(loc='upper right')
+        # Plot P&L with blue line
+        ax6_twin.plot(proportions, body_ratio_df['pnl_pct'].values,
+                     'b-', linewidth=2, label='P&L', alpha=0.8)
+        ax6_twin.axhline(y=0, color='gray', linestyle='-', alpha=0.5)
+
+        ax6.set_title('Body Ratio vs P&L Analysis', fontsize=12, fontweight='bold')
+        ax6.set_xlabel('Proportion of Trades')
+        ax6.set_ylabel('Body Ratio (Body/Range)', color='red')
+        ax6_twin.set_ylabel('P&L (%)', color='blue')
+
+        # Color the y-axis labels
+        ax6.tick_params(axis='y', labelcolor='red')
+        ax6_twin.tick_params(axis='y', labelcolor='blue')
+
+        # Add legends
+        lines1, labels1 = ax6.get_legend_handles_labels()
+        lines2, labels2 = ax6_twin.get_legend_handles_labels()
+        ax6.legend(lines1 + lines2, labels1 + labels2, loc='upper left')
+
+        ax6.grid(True, alpha=0.3)
 
         # 7. Filter Analysis - Trend Direction
         ax7 = plt.subplot(3, 3, 7)
@@ -864,23 +901,71 @@ class TaiwanFuturesBacktest:
             ax7.text(bar.get_x() + bar.get_width()/2., height + 1,
                     f'{height:.1f}%\n(n={count})', ha='center', va='bottom')
 
-        # 8. Volatility Analysis
-        if hasattr(self, 'data') and 'volatility' in self.data.columns:
-            ax8 = plt.subplot(3, 3, 8)
-            volatility_analysis = self.analyze_volatility_patterns()
+        # 8. Candle Size Analysis (using body_size)
+        ax8 = plt.subplot(3, 3, 8)
 
-            if 'volatility_by_offset' in volatility_analysis:
-                vol_data = volatility_analysis['volatility_by_offset']
-                offsets = sorted(vol_data.keys())
-                volatilities = [vol_data[offset] for offset in offsets]
+        # Calculate candle size for sorting (absolute body size)
+        trades_copy = trades.copy()
 
-                ax8.plot(offsets, volatilities, marker='o', linewidth=2, color='purple')
-                ax8.axvline(x=0, color='red', linestyle='--', alpha=0.7, label='Settlement Day')
-                ax8.set_title('Volatility Around Settlement Dates', fontsize=12, fontweight='bold')
-                ax8.set_xlabel('Days from Settlement')
-                ax8.set_ylabel('Volatility (%)')
-                ax8.legend()
-                ax8.grid(True, alpha=0.3)
+        # Get previous day data for each trade
+        candle_data = []
+        for _, trade in trades_copy.iterrows():
+            prev_day = trade['prev_day']
+            prev_day_data = self.data[self.data['Date'] == prev_day].iloc[0]
+
+            body_size = abs(prev_day_data['Close'] - prev_day_data['Open'])
+            total_range = prev_day_data['High'] - prev_day_data['Low']
+            body_ratio = body_size / total_range if total_range > 0 else 0
+
+            # Determine if it's red or black candle and assign signed body size
+            is_red = prev_day_data['Close'] > prev_day_data['Open']
+            signed_body_size = body_size if is_red else -body_size
+
+            candle_data.append({
+                'pnl_pct': trade['pnl_pct'],
+                'signed_body_size': signed_body_size,
+                'body_size': body_size,
+                'body_ratio': body_ratio,
+                'is_red_candle': is_red
+            })
+
+        candle_df = pd.DataFrame(candle_data)
+
+        # Sort by signed body size (largest black to largest red)
+        candle_df = candle_df.sort_values('signed_body_size')
+
+        # Calculate proportion of trades (0 to 1)
+        n_trades = len(candle_df)
+        proportions = np.arange(n_trades) / (n_trades - 1) if n_trades > 1 else [0]
+
+        # Create twin axis for dual plotting
+        ax8_twin = ax8.twinx()
+
+        # Plot body size with red dotted line
+        ax8.plot(proportions, candle_df['signed_body_size'].values,
+                'r--', linewidth=2, label='Body Size', alpha=0.8)
+        ax8.axhline(y=0, color='gray', linestyle='-', alpha=0.5)
+
+        # Plot P&L with blue line
+        ax8_twin.plot(proportions, candle_df['pnl_pct'].values,
+                     'b-', linewidth=2, label='P&L', alpha=0.8)
+        ax8_twin.axhline(y=0, color='gray', linestyle='-', alpha=0.5)
+
+        ax8.set_title('Body Size vs P&L Analysis', fontsize=12, fontweight='bold')
+        ax8.set_xlabel('Proportion of Trades')
+        ax8.set_ylabel('Body Size (Points)', color='red')
+        ax8_twin.set_ylabel('P&L (%)', color='blue')
+
+        # Color the y-axis labels
+        ax8.tick_params(axis='y', labelcolor='red')
+        ax8_twin.tick_params(axis='y', labelcolor='blue')
+
+        # Add legends
+        lines1, labels1 = ax8.get_legend_handles_labels()
+        lines2, labels2 = ax8_twin.get_legend_handles_labels()
+        ax8.legend(lines1 + lines2, labels1 + labels2, loc='upper left')
+
+        ax8.grid(True, alpha=0.3)
 
         # 9. Risk-Return Scatter
         ax9 = plt.subplot(3, 3, 9)
