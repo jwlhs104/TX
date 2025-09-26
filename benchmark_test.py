@@ -36,7 +36,7 @@ class FixedDayBenchmarkTest:
         self.settlement_backtester = TaiwanFuturesBacktest(
             start_date=start_date,
             end_date=end_date,
-            counting_period="weekly",
+            counting_period="weekly",  # Fixed to weekly for benchmark comparison
             opening_price_calc=opening_price_calc,
             prev_close_calc=prev_close_calc
         )
@@ -549,15 +549,38 @@ class FixedDayBenchmarkTest:
 
 def main():
     """Main execution function for benchmark testing"""
+    # Parse command line arguments
+    import argparse
+    parser = argparse.ArgumentParser(description='固定日期型態基準測試系統 Fixed Day Patterns Benchmark Test System')
+    parser.add_argument('--opening_price_calc', choices=['standard', 'night'], default='standard',
+                        help='Opening price calculation method: standard (一般) or night (夜盤)')
+    parser.add_argument('--prev_close_calc', choices=['standard', 'night', 'settlement_open'], default='standard',
+                        help='Previous close calculation method: standard (一般), night (夜盤), or settlement_open (結算日開盤價)')
+    parser.add_argument('--counting_period', choices=['weekly', 'monthly'], default='weekly',
+                        help='Counting period: weekly or monthly')
+    parser.add_argument('--start_date', default='2017-05-16',
+                        help='Start date in YYYY-MM-DD format')
+    parser.add_argument('--end_date', default='2024-12-31',
+                        help='End date in YYYY-MM-DD format')
+    parser.add_argument('--max_dates_per_weekday', type=int, default=200,
+                        help='Maximum number of dates to test per weekday (for faster execution)')
+
+    args = parser.parse_args()
+
     print("固定日期型態基準測試系統 Fixed Day Patterns Benchmark Test System")
     print("="*80)
+    print(f"Opening price calculation: {args.opening_price_calc}")
+    print(f"Previous close calculation: {args.prev_close_calc}")
+    print(f"Counting period: {args.counting_period}")
+    print(f"Date range: {args.start_date} to {args.end_date}")
+    print(f"Max dates per weekday: {args.max_dates_per_weekday}")
 
     # Initialize benchmark tester
     benchmark_tester = FixedDayBenchmarkTest(
-        start_date='2017-05-16',
-        end_date='2024-12-31',
-        opening_price_calc='standard',
-        prev_close_calc='standard'
+        start_date=args.start_date,
+        end_date=args.end_date,
+        opening_price_calc=args.opening_price_calc,
+        prev_close_calc=args.prev_close_calc
     )
 
     try:
@@ -571,7 +594,7 @@ def main():
 
         # Run all benchmark tests
         print("\n3. 執行基準測試 Running Benchmark Tests...")
-        benchmark_tester.run_all_benchmarks(max_dates_per_weekday=200)  # Limit for faster execution
+        benchmark_tester.run_all_benchmarks(max_dates_per_weekday=args.max_dates_per_weekday)
 
         # Create comparison plots
         print("\n4. 生成比較圖表 Creating Comparison Plots...")
