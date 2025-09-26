@@ -562,7 +562,7 @@ def main():
                         help='Start date in YYYY-MM-DD format')
     parser.add_argument('--end_date', default='2024-12-31',
                         help='End date in YYYY-MM-DD format')
-    parser.add_argument('--max_dates_per_weekday', type=int, default=200,
+    parser.add_argument('--max_dates_per_weekday', type=int, default=500,
                         help='Maximum number of dates to test per weekday (for faster execution)')
 
     args = parser.parse_args()
