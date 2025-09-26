@@ -34,9 +34,12 @@ def calculate_max_pain(csv_file):
         if len(df_filtered) == 0:
             return None
 
-    # Get unique strike prices
-    strikes = sorted(df_filtered['履約價'].unique())
-    print(f"Strike price range: {min(strikes)} to {max(strikes)}")
+    # Generate strike range using np.arange
+    min_strike = df_filtered['履約價'].min()
+    max_strike = df_filtered['履約價'].max()
+    strikes = np.arange(min_strike, max_strike + 100, 100)
+    print(f"Strike price range: {min_strike} to {max_strike}")
+    print(f"Generated strikes from {strikes[0]} to {strikes[-1]} with step 100")
     print(f"Number of strikes: {len(strikes)}")
 
     max_pain_values = []
@@ -83,4 +86,4 @@ def calculate_max_pain(csv_file):
     return max_pain_strike[0]
 
 if __name__ == "__main__":
-    max_pain_price = calculate_max_pain("/Users/johnny/Desktop/JQC/TX/data/TXO_20250924.csv")
+    max_pain_price = calculate_max_pain("/Users/johnny/Desktop/JQC/TX/data/TXO_20250923.csv")
