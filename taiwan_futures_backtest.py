@@ -181,7 +181,7 @@ class TaiwanFuturesBacktest:
 
         return self.settlement_dates
 
-    def calculate_opening_day(self, settlement_date):
+    def calculate_opening_date(self, settlement_date):
         """
         Calculate the opening day (first trading day after previous settlement)
         """
@@ -203,7 +203,7 @@ class TaiwanFuturesBacktest:
 
         return opening_date if (self.data['Date'] == opening_date).any() else None
 
-    def get_opening_price(self, opening_day):
+    def get_opening_price(self, opening_date):
         """
         Get opening price based on calculation variation
 
@@ -212,13 +212,13 @@ class TaiwanFuturesBacktest:
         - night: Night session open price (夜盤)
         """
         if self.opening_price_calc == "standard":
-            return self.data[(self.data['Date'] == opening_day) & (self.data['Type'] == '一般')].iloc[0]['Open']
+            return self.data[(self.data['Date'] == opening_date) & (self.data['Type'] == '一般')].iloc[0]['Open']
         elif self.opening_price_calc == "night":
-            return self.data[(self.data['Date'] == opening_day) & (self.data['Type'] == '盤後')].iloc[0]['Open']
+            return self.data[(self.data['Date'] == opening_date) & (self.data['Type'] == '盤後')].iloc[0]['Open']
         else:
             raise Exception(f"opening_price_calc: {self.opening_price_calc} not supported, currently support standard and night")
 
-    def get_prev_close(self, prev_day, settlement_day):
+    def get_prev_close(self, prev_day, settlement_date):
         """
         Get previous close price based on calculation variation
 
@@ -230,11 +230,65 @@ class TaiwanFuturesBacktest:
         if self.prev_close_calc == "standard":
             return self.data[(self.data['Date'] == prev_day) & (self.data['Type'] == '一般')].iloc[0]['Close']
         elif self.prev_close_calc == "night":
-            return self.data[(self.data['Date'] == settlement_day) & (self.data['Type'] == '盤後')].iloc[0]['Close']
+            return self.data[(self.data['Date'] == settlement_date) & (self.data['Type'] == '盤後')].iloc[0]['Close']
         elif self.prev_close_calc == "settlement_open":
-            return self.data[(self.data['Date'] == settlement_day) & (self.data['Type'] == '一般')].iloc[0]['Open']
+            return self.data[(self.data['Date'] == settlement_date) & (self.data['Type'] == '一般')].iloc[0]['Open']
         else:
             raise Exception(f"prev_close_calc: {self.prev_close_calc} not supported, currently support standard, night, and settlement_open")
+
+    def get_date_range_data(self, opening_date, settlement_date):
+
+        between_data = self.data[
+            (self.data['Date'] > opening_date) &
+            (self.data['Date'] < settlement_date)
+        ]
+
+        if self.opening_price_calc == "standard":
+            open_data = self.data[
+                (self.data['Date'] == opening_date) &
+                (self.data['Type'] == '一般')
+            ]
+        elif self.opening_price_calc == "night":
+            open_data = self.data[
+                (self.data['Date'] == opening_date)
+            ]
+        else:
+            raise Exception(f"opening_price_calc: {self.opening_price_calc} not supported, currently support standard and night")
+
+        if self.prev_close_calc == "standard":
+            close_data = pd.DataFrame()
+        elif self.prev_close_calc == "night":
+            close_data = self.data[
+                (self.data['Date'] == settlement_date) &
+                (self.data['Type'] == '盤後')
+            ]
+        elif self.prev_close_calc == "settlement_open":
+            close_data = self.data[
+                (self.data['Date'] == settlement_date)
+            ]
+            open_values = close_data.loc[
+                close_data['Type'] == '一般',
+                'Open'
+            ].values
+            close_data.loc[
+                close_data['Type'] == '一般',
+                ['High', 'Low', 'Close']
+            ] = open_values[:, None] * [1, 1, 1]
+        else:
+            raise Exception(f"prev_close_calc: {self.prev_close_calc} not supported, currently support standard, night, and settlement_open")
+
+        date_range_data = pd.concat([open_data, between_data, close_data])
+        print(date_range_data)
+
+        return date_range_data
+
+    def get_high_price(self, opening_date, settlement_date):
+        date_range_data = self.get_date_range_data(opening_date, settlement_date)
+        return date_range_data['High'].max()
+
+    def get_low_price(self, opening_date, settlement_date):
+        date_range_data = self.get_date_range_data(opening_date, settlement_date)
+        return date_range_data['Low'].min()
 
     def run_backtest(self):
         """
@@ -257,15 +311,15 @@ class TaiwanFuturesBacktest:
             settlement_type = settlement_row['type']
 
             # Calculate opening day
-            opening_day = self.calculate_opening_day(settlement_date)
+            opening_date = self.calculate_opening_date(settlement_date)
 
-            if opening_day is None or not (self.data['Date'] == opening_day).any():
-                print(f'no opening day: {opening_day}, settlement_date: {settlement_date}')
+            if opening_date is None or not (self.data['Date'] == opening_date).any():
+                print(f'no opening day: {opening_date}, settlement_date: {settlement_date}')
                 continue
 
             # Get previous day (day before settlement)
             prev_day = settlement_date - timedelta(days=1)
-            while not (self.data['Date'] == prev_day).any() and prev_day >= opening_day:
+            while not (self.data['Date'] == prev_day).any() and prev_day >= opening_date:
                 prev_day -= timedelta(days=1)
 
             if not (self.data['Date'] == prev_day).any():
@@ -275,8 +329,10 @@ class TaiwanFuturesBacktest:
             # Get settlement day data first (needed for settlement_open variation)
 
             # Calculate trend indicator using the specified variations
-            opening_price = self.get_opening_price(opening_day)
+            opening_price = self.get_opening_price(opening_date)
             prev_close = self.get_prev_close(prev_day, settlement_date)
+            high_price = self.get_high_price(opening_date, settlement_date)
+            low_price = self.get_low_price(opening_date, settlement_date)
             trend_indicator = prev_close - opening_price
 
             # Get additional settlement day data
@@ -314,7 +370,7 @@ class TaiwanFuturesBacktest:
             result = {
                 'settlement_date': settlement_date,
                 'settlement_type': settlement_type,
-                'opening_day': opening_day,
+                'opening_date': opening_date,
                 'prev_day': prev_day,
                 'opening_price': opening_price,
                 'prev_close': prev_close,
@@ -605,7 +661,7 @@ class TaiwanFuturesBacktest:
             normal_vol = self.data['volatility'].mean()
 
             volatility_analysis['settlement_vs_normal'] = {
-                'settlement_day_volatility': settlement_vol,
+                'settlement_date_volatility': settlement_vol,
                 'normal_day_volatility': normal_vol,
                 'volatility_ratio': settlement_vol / normal_vol if normal_vol > 0 else 1
             }
@@ -1073,15 +1129,15 @@ class TaiwanFuturesBacktest:
         # Calculate open high/low indicator for sorting
         open_high_low_data = []
         for _, trade in trades.iterrows():
-            settlement_day = trade['settlement_date']
+            settlement_date = trade['settlement_date']
             prev_day = trade['prev_day']
 
             # Get settlement day data
-            settlement_day_data = self.data[self.data['Date'] == settlement_day].iloc[0]
+            settlement_date_data = self.data[self.data['Date'] == settlement_date].iloc[0]
             prev_day_data = self.data[self.data['Date'] == prev_day].iloc[0]
 
             # Calculate open high/low indicator (settlement open - prev close)
-            open_high_low = settlement_day_data['Open'] - prev_day_data['Close']
+            open_high_low = settlement_date_data['Open'] - prev_day_data['Close']
 
             open_high_low_data.append({
                 'pnl_pct': trade['pnl_pct'],
