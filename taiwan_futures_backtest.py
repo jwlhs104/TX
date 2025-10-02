@@ -278,7 +278,6 @@ class TaiwanFuturesBacktest:
             raise Exception(f"prev_close_calc: {self.prev_close_calc} not supported, currently support standard, night, and settlement_open")
 
         date_range_data = pd.concat([open_data, between_data, close_data])
-        print(date_range_data)
 
         return date_range_data
 
@@ -1060,7 +1059,6 @@ class TaiwanFuturesBacktest:
             })
 
         candle_df = pd.DataFrame(candle_data)
-        print(candle_df[candle_df['pnl_pct']>3])
 
         # Sort by signed body size (largest black to largest red)
         candle_df = candle_df.sort_values('signed_body_size')
