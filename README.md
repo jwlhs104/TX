@@ -31,21 +31,89 @@ This system analyzes Taiwan Futures (TAIEX Futures) settlement day price pattern
 - 風險控制指標（最大回撤）
 - 事件發生率分析
 
+## 🚀 Quick Start
+
+### 1. Setup (One-time)
+```bash
+# Run setup script
+bash setup.sh
+
+# Activate virtual environment
+source venv/bin/activate
+```
+
+### 2. Run Backtest
+```bash
+# Using Makefile (recommended)
+make backtest
+
+# Or using CLI directly
+python cli.py backtest
+```
+
+### 3. View Results
+Results are in `output/` directory:
+- `output/results/` - CSV files with trade details
+- `output/reports/` - Analysis reports
+- `output/plots/` - Performance charts
+
+📖 **See [docs/QUICKSTART.md](docs/QUICKSTART.md) for detailed instructions**
+
+---
+
 ## 安裝與使用 Installation & Usage
 
 ### 環境要求 Requirements
 ```bash
-pip install pandas numpy yfinance matplotlib
+# Automatically installed by setup.sh
+pandas>=1.5.0
+numpy>=1.21.0
+matplotlib>=3.5.0
+seaborn>=0.12.0
+scipy>=1.9.0
 ```
 
-### 執行回測 Run Backtest
+### 執行方式 Execution Methods
+
+#### Method 1: Makefile Commands (Easiest)
+```bash
+make backtest              # Run standard backtest
+make backtest-monthly      # Monthly settlements only
+make backtest-night        # Night session pricing
+make maxpain               # TXO max pain analysis
+make report                # Generate comprehensive report
+make help                  # Show all commands
+```
+
+#### Method 2: Unified CLI
+```bash
+# TX Backtest
+python cli.py backtest [options]
+
+# TXO Max Pain Analysis
+python cli.py maxpain [options]
+
+# Generate Report
+python cli.py report
+
+# Calculate Max Pain from CSV
+python cli.py calc <file>
+
+# Show help
+python cli.py --help
+```
+
+#### Method 3: Direct Python Scripts (Legacy)
 ```bash
 python taiwan_futures_backtest.py
+python txo_max_pain_backtest.py
+python generate_report.py
 ```
 
 ### 輸出檔案 Output Files
-- `taiwan_futures_backtest_results.csv`: 詳細交易記錄
-- 終端報表: 完整績效分析報告
+- `output/results/taiwan_futures_backtest_results.csv`: 詳細交易記錄
+- `output/reports/result.md`: 綜合分析報告
+- `output/plots/performance_analysis.png`: 績效圖表
 
 ## 回測結果 Backtest Results
 

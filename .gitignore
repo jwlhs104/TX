@@ -1,6 +1,55 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual Environment
+venv/
+ENV/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# macOS
 .DS_Store
-__pycache__
+.AppleDouble
+.LSOverride
+
+# Logs
+logs/
+*.log
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Output files
+output/
 performance_analysis.png
 result.md
 taiwan_futures_backtest_results.csv
-data
+txo_max_pain_results.csv
+txo_max_pain_analysis.png
+benchmark_comparison.png
+
+# Data files (sensitive - do not commit)
+data/
+
+# Keep sample data and documentation
+!data/sample/
+!data/README.md
+
+# Environment variables
+.env
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
