@@ -9,6 +9,7 @@ for the Taiwan Futures settlement day pattern backtesting system.
 
 from datetime import datetime
 import pandas as pd
+from config import get_path_str
 
 
 class ReportGenerator:
@@ -49,7 +50,7 @@ class ReportGenerator:
         )
 
         # Save to file
-        filepath = f"/Users/johnny/Desktop/JQC/TX/{filename}"
+        filepath = get_path_str('tx_report')
         try:
             with open(filepath, 'w', encoding='utf-8') as f:
                 f.write(md_content)

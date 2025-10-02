@@ -13,7 +13,11 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from datetime import datetime, timedelta
 import warnings
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from taiwan_futures_backtest import TaiwanFuturesBacktest
+from config import OUTPUT_DIR
 
 warnings.filterwarnings('ignore')
 
@@ -479,7 +483,7 @@ class FixedDayBenchmarkTest:
         plt.tight_layout()
 
         # Save the plot
-        plot_filename = '/Users/johnny/Desktop/JQC/TX/benchmark_comparison.png'
+        plot_filename = OUTPUT_DIR / 'plots' / 'benchmark_comparison.png'
         plt.savefig(plot_filename, dpi=300, bbox_inches='tight')
         print(f"\nBenchmark comparison plots saved to: {plot_filename}")
 

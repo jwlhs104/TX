@@ -25,51 +25,94 @@ def run_backtest(args):
     print(f"Opening price calc: {args.opening_price_calc}")
     print(f"Previous close calc: {args.prev_close_calc}")
     print(f"Date range: {args.start_date} to {args.end_date}")
+    if args.benchmark:
+        print(f"Benchmark mode: Enabled (comparing with other weekdays)")
     print()
 
-    # Initialize backtester
-    backtester = TaiwanFuturesBacktest(
-        start_date=args.start_date,
-        end_date=args.end_date,
-        counting_period=args.counting_period,
-        opening_price_calc=args.opening_price_calc,
-        prev_close_calc=args.prev_close_calc
-    )
+    # If benchmark mode is enabled, use the benchmark tester
+    if args.benchmark:
+        from utils.benchmark_test import FixedDayBenchmarkTest
 
-    # Run analysis
-    try:
-        print("1. Loading data...")
-        backtester.get_taiwan_futures_data()
+        try:
+            # Initialize benchmark tester
+            benchmark_tester = FixedDayBenchmarkTest(
+                start_date=args.start_date,
+                end_date=args.end_date,
+                opening_price_calc=args.opening_price_calc,
+                prev_close_calc=args.prev_close_calc
+            )
 
-        print("2. Calculating settlement dates...")
-        backtester.calculate_settlement_dates()
+            print("1. Loading data...")
+            benchmark_tester.load_data()
 
-        print("3. Running backtest...")
-        backtester.run_backtest()
+            print("2. Running settlement day backtest...")
+            benchmark_tester.run_settlement_backtest()
 
-        print("4. Generating report...")
-        backtester.generate_report()
+            print("3. Running benchmark tests (comparing other weekdays)...")
+            max_dates = args.benchmark_max_dates if hasattr(args, 'benchmark_max_dates') else 500
+            benchmark_tester.run_all_benchmarks(max_dates_per_weekday=max_dates)
 
-        if not args.no_plots:
-            print("5. Creating visualizations...")
-            backtester.create_performance_plots()
+            if not args.no_plots:
+                print("4. Creating comparison plots...")
+                benchmark_tester.create_comparison_plots()
 
-        print("6. Saving results...")
-        backtester.save_detailed_results()
+            print("5. Generating benchmark report...")
+            benchmark_tester.generate_benchmark_report()
 
-        if args.markdown:
-            print("7. Saving markdown report...")
-            backtester.save_results_summary_to_md()
+            print("\n" + "="*80)
+            print("✓ Benchmark test completed successfully!")
+            print("="*80)
 
-        print("\n" + "="*80)
-        print("✓ Backtest completed successfully!")
-        print("="*80)
+        except Exception as e:
+            print(f"\n✗ Error during benchmark test: {e}")
+            import traceback
+            traceback.print_exc()
+            sys.exit(1)
+    else:
+        # Regular backtest mode
+        # Initialize backtester
+        backtester = TaiwanFuturesBacktest(
+            start_date=args.start_date,
+            end_date=args.end_date,
+            counting_period=args.counting_period,
+            opening_price_calc=args.opening_price_calc,
+            prev_close_calc=args.prev_close_calc
+        )
 
-    except Exception as e:
-        print(f"\n✗ Error during backtest: {e}")
-        import traceback
-        traceback.print_exc()
-        sys.exit(1)
+        # Run analysis
+        try:
+            print("1. Loading data...")
+            backtester.get_taiwan_futures_data()
+
+            print("2. Calculating settlement dates...")
+            backtester.calculate_settlement_dates()
+
+            print("3. Running backtest...")
+            backtester.run_backtest()
+
+            print("4. Generating report...")
+            backtester.generate_report()
+
+            if not args.no_plots:
+                print("5. Creating visualizations...")
+                backtester.create_performance_plots()
+
+            print("6. Saving results...")
+            backtester.save_detailed_results()
+
+            if not args.no_markdown:
+                print("7. Saving markdown report...")
+                backtester.save_results_summary_to_md()
+
+            print("\n" + "="*80)
+            print("✓ Backtest completed successfully!")
+            print("="*80)
+
+        except Exception as e:
+            print(f"\n✗ Error during backtest: {e}")
+            import traceback
+            traceback.print_exc()
+            sys.exit(1)
 
 
 def run_maxpain(args):
@@ -201,6 +244,12 @@ Examples:
   # Run backtest with night session prices
   python cli.py backtest --opening-price-calc night --prev-close-calc night
 
+  # Run backtest with benchmark comparison (settlement vs other weekdays)
+  python cli.py backtest --benchmark
+
+  # Run benchmark with custom date limit per weekday
+  python cli.py backtest --benchmark --benchmark-max-dates 1000
+
   # Run max pain analysis
   python cli.py maxpain
 
@@ -254,9 +303,20 @@ Examples:
         help='Skip generating plots'
     )
     backtest_parser.add_argument(
-        '--markdown',
+        '--no-markdown',
         action='store_true',
-        help='Generate markdown report'
+        help='Skip generating markdown report'
+    )
+    backtest_parser.add_argument(
+        '--benchmark',
+        action='store_true',
+        help='Enable benchmark mode: compare settlement day with other weekdays'
+    )
+    backtest_parser.add_argument(
+        '--benchmark-max-dates',
+        type=int,
+        default=500,
+        help='Maximum dates to test per weekday in benchmark mode (default: 500)'
     )
     backtest_parser.set_defaults(func=run_backtest)
 

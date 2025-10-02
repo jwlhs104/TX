@@ -18,6 +18,7 @@ warnings.filterwarnings('ignore')
 
 # Import the report generator module
 from report_generator import ReportGenerator
+from config import get_path_str
 
 # Set Chinese font for matplotlib
 plt.rcParams['font.sans-serif'] = ['Arial Unicode MS', 'SimHei', 'DejaVu Sans']
@@ -1208,7 +1209,7 @@ class TaiwanFuturesBacktest:
         plt.tight_layout()
 
         # Save the plot
-        plot_filename = '/Users/johnny/Desktop/JQC/TX/performance_analysis.png'
+        plot_filename = get_path_str('tx_plots')
         plt.savefig(plot_filename, dpi=300, bbox_inches='tight')
         print(f"\nPerformance plots saved to: {plot_filename}")
 
@@ -1281,8 +1282,8 @@ class TaiwanFuturesBacktest:
         Save detailed results to CSV file
         """
         if self.results is not None and len(self.results) > 0:
-            # Save to current directory
-            filepath = f"/Users/johnny/Desktop/JQC/TX/{filename}"
+            # Save to output/results directory
+            filepath = get_path_str('tx_results')
             self.results.to_csv(filepath, index=False, encoding='utf-8-sig')
             print(f"\nDetailed results saved to: {filepath}")
             return filepath
