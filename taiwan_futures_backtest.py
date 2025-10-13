@@ -839,6 +839,127 @@ class TaiwanFuturesBacktest:
 
         return risk_metrics
 
+    def create_indicator_analysis_plot(self):
+        """
+        Create indicator vs cumulative price movement analysis plot
+
+        This plot helps visualize the relationship between indicator values
+        and cumulative settlement day price movements to determine:
+        1. Whether the indicator has predictive power
+        2. Whether the signal direction should be inverted
+        3. The optimal threshold for trade signals
+
+        X-axis: Indicator value (sorted from small to large)
+        Y-axis: Cumulative price change (sum of actual changes as we move along sorted indicators)
+        """
+        if self.results is None or len(self.results) == 0:
+            print("No results available for plotting.")
+            return
+
+        trades = self.results[self.results['direction'] != 'no_trade'].copy()
+        if len(trades) == 0:
+            print("No trades available for plotting.")
+            return
+
+        # Prepare data: indicator value and actual price change
+        analysis_data = []
+        for _, trade in trades.iterrows():
+            indicator_value = trade['trend_indicator']
+            # Actual price change on settlement day (points)
+            actual_change = trade['settlement_close'] - trade['settlement_open']
+            # Convert to percentage
+            actual_change_pct = (trade['settlement_close'] - trade['settlement_open']) / trade['settlement_open'] * 100
+
+            analysis_data.append({
+                'indicator': indicator_value,
+                'actual_change': actual_change,
+                'actual_change_pct': actual_change_pct
+            })
+
+        df = pd.DataFrame(analysis_data)
+
+        # Sort by indicator value (small to large)
+        df = df.sort_values('indicator').reset_index(drop=True)
+
+        # Calculate cumulative sum
+        df['cumulative_change_pct'] = df['actual_change_pct'].cumsum()
+
+        # Create figure - Chinese font already set at module level
+        fig, ax = plt.subplots(figsize=(14, 8))
+
+        # Plot cumulative line
+        ax.plot(df['indicator'], df['cumulative_change_pct'],
+               linewidth=2.5, color='steelblue', alpha=0.8, label='Cumulative Return')
+
+        # Add scatter points for better visibility
+        scatter = ax.scatter(df['indicator'], df['cumulative_change_pct'],
+                           s=30, c=df['actual_change_pct'], cmap='RdYlGn',
+                           edgecolors='black', linewidth=0.3, alpha=0.6, zorder=5)
+
+        # Add reference lines
+        ax.axhline(y=0, color='gray', linestyle='-', linewidth=1.5, alpha=0.7, label='Zero Line')
+        ax.axvline(x=0, color='red', linestyle='--', linewidth=2, alpha=0.7, label='Indicator Zero (Current Split)')
+
+        # Find the point where cumulative change is min/max (potential optimal thresholds)
+        min_idx = df['cumulative_change_pct'].idxmin()
+        max_idx = df['cumulative_change_pct'].idxmax()
+
+        min_indicator = df.loc[min_idx, 'indicator']
+        max_indicator = df.loc[max_idx, 'indicator']
+        min_cumulative = df.loc[min_idx, 'cumulative_change_pct']
+        max_cumulative = df.loc[max_idx, 'cumulative_change_pct']
+
+        # Mark optimal points
+        ax.scatter([min_indicator], [min_cumulative], s=200, c='red',
+                  marker='v', edgecolors='black', linewidth=2, zorder=10,
+                  label=f'Min Point (Indicator={min_indicator:.0f})')
+        ax.scatter([max_indicator], [max_cumulative], s=200, c='green',
+                  marker='^', edgecolors='black', linewidth=2, zorder=10,
+                  label=f'Max Point (Indicator={max_indicator:.0f})')
+
+        # Add colorbar
+        cbar = plt.colorbar(scatter, ax=ax)
+        cbar.set_label('Single Trade Return (%)', rotation=270, labelpad=20)
+
+        # Calculate statistics
+        final_cumulative = df['cumulative_change_pct'].iloc[-1]
+        cumulative_at_zero = df[df['indicator'] >= 0]['cumulative_change_pct'].iloc[0] if len(df[df['indicator'] >= 0]) > 0 else 0
+
+        # Analyze slope before and after zero
+        left_of_zero = df[df['indicator'] < 0]
+        right_of_zero = df[df['indicator'] >= 0]
+
+        left_slope = 0
+        right_slope = 0
+
+        if len(left_of_zero) > 1:
+            left_slope = (left_of_zero['cumulative_change_pct'].iloc[-1] - left_of_zero['cumulative_change_pct'].iloc[0]) / (left_of_zero['indicator'].iloc[-1] - left_of_zero['indicator'].iloc[0])
+
+        if len(right_of_zero) > 1:
+            right_slope = (right_of_zero['cumulative_change_pct'].iloc[-1] - right_of_zero['cumulative_change_pct'].iloc[0]) / (right_of_zero['indicator'].iloc[-1] - right_of_zero['indicator'].iloc[0])
+
+        # Labels and title
+        ax.set_xlabel('Indicator Value (Sorted Low to High)', fontsize=12, fontweight='bold')
+        ax.set_ylabel('Cumulative Return (%)', fontsize=12, fontweight='bold')
+        ax.set_title(f'Indicator Value vs Cumulative Return Analysis\nTotal Cumulative: {final_cumulative:.2f}%',
+                    fontsize=14, fontweight='bold', pad=20)
+
+        # Add grid
+        ax.grid(True, alpha=0.3, linestyle='--')
+
+        # Add legend
+        ax.legend(loc='upper left', fontsize=9)
+
+        plt.tight_layout()
+
+        # Save the plot
+        plot_filename = get_path_str('tx_analysis')
+        plt.savefig(plot_filename, dpi=300, bbox_inches='tight')
+        print(f"\nIndicator analysis plot saved to: {plot_filename}")
+        plt.close()
+
+        return plot_filename
+
     def create_performance_plots(self):
         """
         Create comprehensive performance visualization plots
@@ -1397,6 +1518,10 @@ def main():
         print("\n6. 生成圖表 Creating Visualizations...")
         plot_filename = backtester.create_performance_plots()
 
+        # Create indicator analysis plot
+        print("\n6.1. 生成指標分析圖 Creating Indicator Analysis Plot...")
+        indicator_plot_filename = backtester.create_indicator_analysis_plot()
+
         # Save results
         print("\n7. 儲存結果 Saving Results...")
         backtester.save_detailed_results()
@@ -1410,7 +1535,8 @@ def main():
             'volatility_analysis': volatility_analysis,
             'seasonal_analysis': seasonal_analysis,
             'risk_metrics': risk_metrics,
-            'plot_filename': plot_filename
+            'plot_filename': plot_filename,
+            'indicator_plot_filename': indicator_plot_filename
         }
 
     except Exception as e:

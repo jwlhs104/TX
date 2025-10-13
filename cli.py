@@ -162,6 +162,8 @@ def run_backtest(args):
                 if not args.no_plots:
                     print("5. Creating visualizations...")
                     backtester.create_performance_plots()
+                    print("5.1. Creating indicator analysis plot...")
+                    backtester.create_indicator_analysis_plot()
 
                 print("6. Saving results...")
                 backtester.save_detailed_results()
@@ -211,6 +213,8 @@ def run_backtest(args):
                 if not args.no_plots:
                     print("5. Creating visualizations...")
                     backtester.create_performance_plots()
+                    print("5.1. Creating indicator analysis plot...")
+                    backtester.create_indicator_analysis_plot()
 
                 print("6. Saving results...")
                 backtester.save_detailed_results()

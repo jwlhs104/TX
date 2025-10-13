@@ -28,6 +28,7 @@ PATHS = {
     'tx_results': OUTPUT_DIR / 'results' / 'taiwan_futures_backtest_results.csv',
     'tx_report': OUTPUT_DIR / 'reports' / 'result.md',
     'tx_plots': OUTPUT_DIR / 'plots' / 'performance_analysis.png',
+    'tx_analysis': OUTPUT_DIR / 'plots' / 'indicator_analysis.png',
 
     'txo_results': OUTPUT_DIR / 'results' / 'txo_max_pain_results.csv',
     'txo_plots': OUTPUT_DIR / 'plots' / 'txo_max_pain_analysis.png',
