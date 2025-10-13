@@ -13,14 +13,16 @@ from config import get_path_str
 
 
 class ReportGenerator:
-    def __init__(self, backtester=None):
+    def __init__(self, backtester=None, indicator_name=None):
         """
         Initialize report generator with backtester instance
 
         Args:
             backtester: TaiwanFuturesBacktest instance
+            indicator_name: Name of the indicator (for unique filenames)
         """
         self.backtester = backtester
+        self.indicator_name = indicator_name
 
     def save_results_summary_to_md(self, filename='result.md'):
         """
@@ -50,7 +52,8 @@ class ReportGenerator:
         )
 
         # Save to file
-        filepath = get_path_str('tx_report')
+        from config import get_indicator_path_str
+        filepath = get_indicator_path_str('tx_report', self.indicator_name)
         try:
             with open(filepath, 'w', encoding='utf-8') as f:
                 f.write(md_content)

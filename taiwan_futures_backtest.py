@@ -839,7 +839,7 @@ class TaiwanFuturesBacktest:
 
         return risk_metrics
 
-    def create_indicator_analysis_plot(self):
+    def create_indicator_analysis_plot(self, indicator_name=None):
         """
         Create indicator vs cumulative price movement analysis plot
 
@@ -1004,14 +1004,15 @@ class TaiwanFuturesBacktest:
         plt.tight_layout()
 
         # Save the plot
-        plot_filename = get_path_str('tx_analysis')
+        from config import get_indicator_path_str
+        plot_filename = get_indicator_path_str('tx_analysis', indicator_name)
         plt.savefig(plot_filename, dpi=300, bbox_inches='tight')
         print(f"\nIndicator analysis plot saved to: {plot_filename}")
         plt.close()
 
         return plot_filename
 
-    def create_performance_plots(self):
+    def create_performance_plots(self, indicator_name=None):
         """
         Create comprehensive performance visualization plots
         """
@@ -1422,7 +1423,8 @@ class TaiwanFuturesBacktest:
         plt.tight_layout()
 
         # Save the plot
-        plot_filename = get_path_str('tx_plots')
+        from config import get_indicator_path_str
+        plot_filename = get_indicator_path_str('tx_plots', indicator_name)
         plt.savefig(plot_filename, dpi=300, bbox_inches='tight')
         print(f"\nPerformance plots saved to: {plot_filename}")
 
@@ -1478,13 +1480,14 @@ class TaiwanFuturesBacktest:
         print("報告生成完成 Report Generation Complete")
         print("="*80)
 
-    def save_detailed_results(self, filename='taiwan_futures_backtest_results.csv'):
+    def save_detailed_results(self, filename='taiwan_futures_backtest_results.csv', indicator_name=None):
         """
         Save detailed results to CSV file
         """
         if self.results is not None and len(self.results) > 0:
             # Save to output/results directory
-            filepath = get_path_str('tx_results')
+            from config import get_indicator_path_str
+            filepath = get_indicator_path_str('tx_results', indicator_name)
             self.results.to_csv(filepath, index=False, encoding='utf-8-sig')
             print(f"\nDetailed results saved to: {filepath}")
             return filepath
@@ -1492,17 +1495,18 @@ class TaiwanFuturesBacktest:
             print("No results to save.")
             return None
 
-    def save_results_summary_to_md(self, filename='result.md'):
+    def save_results_summary_to_md(self, filename='result.md', indicator_name=None):
         """
         Save backtest results summary and performance analysis to markdown file
 
         Args:
             filename: Output markdown filename
+            indicator_name: Name of the indicator (for unique filenames)
 
         Returns:
             str: Path to saved file or None if failed
         """
-        generator = ReportGenerator(self)
+        generator = ReportGenerator(self, indicator_name=indicator_name)
         return generator.save_results_summary_to_md(filename)
 
 def main():

@@ -161,16 +161,16 @@ def run_backtest(args):
 
                 if not args.no_plots:
                     print("5. Creating visualizations...")
-                    backtester.create_performance_plots()
+                    backtester.create_performance_plots(indicator_name=ind_name)
                     print("5.1. Creating indicator analysis plot...")
-                    backtester.create_indicator_analysis_plot()
+                    backtester.create_indicator_analysis_plot(indicator_name=ind_name)
 
                 print("6. Saving results...")
-                backtester.save_detailed_results()
+                backtester.save_detailed_results(indicator_name=ind_name)
 
                 if not args.no_markdown:
                     print("7. Saving markdown report...")
-                    backtester.save_results_summary_to_md()
+                    backtester.save_results_summary_to_md(indicator_name=ind_name)
 
                 all_backtests.append((ind_name, backtester))
                 print()
@@ -212,16 +212,16 @@ def run_backtest(args):
 
                 if not args.no_plots:
                     print("5. Creating visualizations...")
-                    backtester.create_performance_plots()
+                    backtester.create_performance_plots(indicator_name='Combined_Equal_Weights')
                     print("5.1. Creating indicator analysis plot...")
-                    backtester.create_indicator_analysis_plot()
+                    backtester.create_indicator_analysis_plot(indicator_name='Combined_Equal_Weights')
 
                 print("6. Saving results...")
-                backtester.save_detailed_results()
+                backtester.save_detailed_results(indicator_name='Combined_Equal_Weights')
 
                 if not args.no_markdown:
                     print("7. Saving markdown report...")
-                    backtester.save_results_summary_to_md()
+                    backtester.save_results_summary_to_md(indicator_name='Combined_Equal_Weights')
 
                 all_backtests.append(('Combined (Equal Weights)', backtester))
                 print()
@@ -234,9 +234,9 @@ def run_backtest(args):
                 for ind_name, bt in all_backtests:
                     stats = bt.calculate_performance_stats()
                     print(f"\n{ind_name}:")
-                    print(f"  勝率: {stats['勝率']}")
-                    print(f"  平均獲利: {stats['平均獲利']:.2f}")
-                    print(f"  總獲利: {stats['總獲利']:.2f}")
+                    print(f"  勝率: {stats.get('勝率', 'N/A')}")
+                    print(f"  筆均: {stats.get('筆均', 0):.2f}%")
+                    print(f"  淨利: {stats.get('淨利', 0):.2f}%")
 
             print("\n" + "="*80)
             print("✓ All backtests completed successfully!")
