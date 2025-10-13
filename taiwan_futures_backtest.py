@@ -850,7 +850,8 @@ class TaiwanFuturesBacktest:
         3. The optimal threshold for trade signals
 
         X-axis: Indicator value (sorted from small to large)
-        Y-axis: Cumulative price change (sum of actual changes as we move along sorted indicators)
+        Y-axis Top: Cumulative price change (sum of actual changes as we move along sorted indicators)
+        Y-axis Bottom: Cumulative return based on indicator signal (using strategy logic)
         """
         if self.results is None or len(self.results) == 0:
             print("No results available for plotting.")
@@ -865,15 +866,27 @@ class TaiwanFuturesBacktest:
         analysis_data = []
         for _, trade in trades.iterrows():
             indicator_value = trade['trend_indicator']
+            trend_signal = trade['trend_signal']
+
             # Actual price change on settlement day (points)
             actual_change = trade['settlement_close'] - trade['settlement_open']
             # Convert to percentage
             actual_change_pct = (trade['settlement_close'] - trade['settlement_open']) / trade['settlement_open'] * 100
 
+            # Calculate return based on indicator signal (strategy logic)
+            if trend_signal == 1:  # Long signal
+                strategy_return_pct = actual_change_pct  # Go long
+            elif trend_signal == -1:  # Short signal
+                strategy_return_pct = -actual_change_pct  # Go short
+            else:  # No trade signal
+                strategy_return_pct = 0
+
             analysis_data.append({
                 'indicator': indicator_value,
                 'actual_change': actual_change,
-                'actual_change_pct': actual_change_pct
+                'actual_change_pct': actual_change_pct,
+                'strategy_return_pct': strategy_return_pct,
+                'trend_signal': trend_signal
             })
 
         df = pd.DataFrame(analysis_data)
@@ -881,24 +894,26 @@ class TaiwanFuturesBacktest:
         # Sort by indicator value (small to large)
         df = df.sort_values('indicator').reset_index(drop=True)
 
-        # Calculate cumulative sum
+        # Calculate cumulative sums
         df['cumulative_change_pct'] = df['actual_change_pct'].cumsum()
+        df['cumulative_strategy_return_pct'] = df['strategy_return_pct'].cumsum()
 
-        # Create figure - Chinese font already set at module level
-        fig, ax = plt.subplots(figsize=(14, 8))
+        # Create figure with 2 subplots - Chinese font already set at module level
+        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(14, 12))
 
+        # ========== First plot: Cumulative Change (actual price movements) ==========
         # Plot cumulative line
-        ax.plot(df['indicator'], df['cumulative_change_pct'],
-               linewidth=2.5, color='steelblue', alpha=0.8, label='Cumulative Return')
+        ax1.plot(df['indicator'], df['cumulative_change_pct'],
+               linewidth=2.5, color='steelblue', alpha=0.8, label='Cumulative Change')
 
         # Add scatter points for better visibility
-        scatter = ax.scatter(df['indicator'], df['cumulative_change_pct'],
+        scatter1 = ax1.scatter(df['indicator'], df['cumulative_change_pct'],
                            s=30, c=df['actual_change_pct'], cmap='RdYlGn',
                            edgecolors='black', linewidth=0.3, alpha=0.6, zorder=5)
 
         # Add reference lines
-        ax.axhline(y=0, color='gray', linestyle='-', linewidth=1.5, alpha=0.7, label='Zero Line')
-        ax.axvline(x=0, color='red', linestyle='--', linewidth=2, alpha=0.7, label='Indicator Zero (Current Split)')
+        ax1.axhline(y=0, color='gray', linestyle='-', linewidth=1.5, alpha=0.7, label='Zero Line')
+        ax1.axvline(x=0, color='red', linestyle='--', linewidth=2, alpha=0.7, label='Indicator Zero (Current Split)')
 
         # Find the point where cumulative change is min/max (potential optimal thresholds)
         min_idx = df['cumulative_change_pct'].idxmin()
@@ -910,45 +925,81 @@ class TaiwanFuturesBacktest:
         max_cumulative = df.loc[max_idx, 'cumulative_change_pct']
 
         # Mark optimal points
-        ax.scatter([min_indicator], [min_cumulative], s=200, c='red',
+        ax1.scatter([min_indicator], [min_cumulative], s=200, c='red',
                   marker='v', edgecolors='black', linewidth=2, zorder=10,
                   label=f'Min Point (Indicator={min_indicator:.0f})')
-        ax.scatter([max_indicator], [max_cumulative], s=200, c='green',
+        ax1.scatter([max_indicator], [max_cumulative], s=200, c='green',
                   marker='^', edgecolors='black', linewidth=2, zorder=10,
                   label=f'Max Point (Indicator={max_indicator:.0f})')
 
         # Add colorbar
-        cbar = plt.colorbar(scatter, ax=ax)
-        cbar.set_label('Single Trade Return (%)', rotation=270, labelpad=20)
+        cbar1 = plt.colorbar(scatter1, ax=ax1)
+        cbar1.set_label('Single Trade Return (%)', rotation=270, labelpad=20)
 
         # Calculate statistics
         final_cumulative = df['cumulative_change_pct'].iloc[-1]
-        cumulative_at_zero = df[df['indicator'] >= 0]['cumulative_change_pct'].iloc[0] if len(df[df['indicator'] >= 0]) > 0 else 0
 
-        # Analyze slope before and after zero
-        left_of_zero = df[df['indicator'] < 0]
-        right_of_zero = df[df['indicator'] >= 0]
-
-        left_slope = 0
-        right_slope = 0
-
-        if len(left_of_zero) > 1:
-            left_slope = (left_of_zero['cumulative_change_pct'].iloc[-1] - left_of_zero['cumulative_change_pct'].iloc[0]) / (left_of_zero['indicator'].iloc[-1] - left_of_zero['indicator'].iloc[0])
-
-        if len(right_of_zero) > 1:
-            right_slope = (right_of_zero['cumulative_change_pct'].iloc[-1] - right_of_zero['cumulative_change_pct'].iloc[0]) / (right_of_zero['indicator'].iloc[-1] - right_of_zero['indicator'].iloc[0])
-
-        # Labels and title
-        ax.set_xlabel('Indicator Value (Sorted Low to High)', fontsize=12, fontweight='bold')
-        ax.set_ylabel('Cumulative Return (%)', fontsize=12, fontweight='bold')
-        ax.set_title(f'Indicator Value vs Cumulative Return Analysis\nTotal Cumulative: {final_cumulative:.2f}%',
+        # Labels and title for first plot
+        ax1.set_xlabel('Indicator Value (Sorted Low to High)', fontsize=12, fontweight='bold')
+        ax1.set_ylabel('Cumulative Change (%)', fontsize=12, fontweight='bold')
+        ax1.set_title(f'Indicator Value vs Cumulative Change (Actual Price Movements)\nTotal Cumulative: {final_cumulative:.2f}%',
                     fontsize=14, fontweight='bold', pad=20)
 
         # Add grid
-        ax.grid(True, alpha=0.3, linestyle='--')
+        ax1.grid(True, alpha=0.3, linestyle='--')
 
         # Add legend
-        ax.legend(loc='upper left', fontsize=9)
+        ax1.legend(loc='upper left', fontsize=9)
+
+        # ========== Second plot: Cumulative Strategy Return (based on indicator signals) ==========
+        # Plot cumulative line
+        ax2.plot(df['indicator'], df['cumulative_strategy_return_pct'],
+               linewidth=2.5, color='darkgreen', alpha=0.8, label='Cumulative Strategy Return')
+
+        # Add scatter points for better visibility
+        scatter2 = ax2.scatter(df['indicator'], df['cumulative_strategy_return_pct'],
+                           s=30, c=df['strategy_return_pct'], cmap='RdYlGn',
+                           edgecolors='black', linewidth=0.3, alpha=0.6, zorder=5)
+
+        # Add reference lines
+        ax2.axhline(y=0, color='gray', linestyle='-', linewidth=1.5, alpha=0.7, label='Zero Line')
+        ax2.axvline(x=0, color='red', linestyle='--', linewidth=2, alpha=0.7, label='Indicator Zero (Current Split)')
+
+        # Find the point where cumulative strategy return is min/max
+        min_idx_strategy = df['cumulative_strategy_return_pct'].idxmin()
+        max_idx_strategy = df['cumulative_strategy_return_pct'].idxmax()
+
+        min_indicator_strategy = df.loc[min_idx_strategy, 'indicator']
+        max_indicator_strategy = df.loc[max_idx_strategy, 'indicator']
+        min_cumulative_strategy = df.loc[min_idx_strategy, 'cumulative_strategy_return_pct']
+        max_cumulative_strategy = df.loc[max_idx_strategy, 'cumulative_strategy_return_pct']
+
+        # Mark optimal points
+        ax2.scatter([min_indicator_strategy], [min_cumulative_strategy], s=200, c='red',
+                  marker='v', edgecolors='black', linewidth=2, zorder=10,
+                  label=f'Min Point (Indicator={min_indicator_strategy:.0f})')
+        ax2.scatter([max_indicator_strategy], [max_cumulative_strategy], s=200, c='green',
+                  marker='^', edgecolors='black', linewidth=2, zorder=10,
+                  label=f'Max Point (Indicator={max_indicator_strategy:.0f})')
+
+        # Add colorbar
+        cbar2 = plt.colorbar(scatter2, ax=ax2)
+        cbar2.set_label('Single Trade Strategy Return (%)', rotation=270, labelpad=20)
+
+        # Calculate statistics
+        final_cumulative_strategy = df['cumulative_strategy_return_pct'].iloc[-1]
+
+        # Labels and title for second plot
+        ax2.set_xlabel('Indicator Value (Sorted Low to High)', fontsize=12, fontweight='bold')
+        ax2.set_ylabel('Cumulative Strategy Return (%)', fontsize=12, fontweight='bold')
+        ax2.set_title(f'Indicator Value vs Cumulative Strategy Return (Based on Indicator Signals)\nTotal Cumulative: {final_cumulative_strategy:.2f}%',
+                    fontsize=14, fontweight='bold', pad=20)
+
+        # Add grid
+        ax2.grid(True, alpha=0.3, linestyle='--')
+
+        # Add legend
+        ax2.legend(loc='upper left', fontsize=9)
 
         plt.tight_layout()
 
