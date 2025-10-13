@@ -20,12 +20,30 @@ warnings.filterwarnings('ignore')
 from report_generator import ReportGenerator
 from config import get_path_str
 
+# Import indicator framework
+from indicators import (
+    TrendIndicator,
+    PriceDifferenceIndicator,
+    MovingAverageIndicator,
+    MomentumIndicator,
+    IndicatorCombiner,
+    CombinationMode
+)
+
 # Set Chinese font for matplotlib
 plt.rcParams['font.sans-serif'] = ['Arial Unicode MS', 'SimHei', 'DejaVu Sans']
 plt.rcParams['axes.unicode_minus'] = False
 
 class TaiwanFuturesBacktest:
-    def __init__(self, start_date='2017-05-16', end_date='2024-12-31', counting_period="weekly", opening_price_calc="standard", prev_close_calc="standard"):
+    def __init__(
+        self,
+        start_date='2017-05-16',
+        end_date='2024-12-31',
+        counting_period="weekly",
+        opening_price_calc="standard",
+        prev_close_calc="standard",
+        trend_indicator=None
+    ):
         self.start_date = start_date
         self.end_date = end_date
         self.counting_period = counting_period
@@ -34,6 +52,16 @@ class TaiwanFuturesBacktest:
         self.data = None
         self.settlement_dates = None
         self.results = []
+
+        # Set up trend indicator
+        if trend_indicator is None:
+            # Default to the original price difference indicator
+            self.trend_indicator = PriceDifferenceIndicator(
+                opening_price_calc=opening_price_calc,
+                prev_close_calc=prev_close_calc
+            )
+        else:
+            self.trend_indicator = trend_indicator
 
     def get_taiwan_futures_data(self):
         """
@@ -326,14 +354,25 @@ class TaiwanFuturesBacktest:
                 print(f'no prev day: {prev_day}, settlement_date: {settlement_date}')
                 continue
 
-            # Get settlement day data first (needed for settlement_open variation)
+            # Calculate trend indicator using the indicator system
+            try:
+                indicator_result = self.trend_indicator.calculate(
+                    opening_date=opening_date,
+                    settlement_date=settlement_date,
+                    data=self.data
+                )
+                trend_indicator_value = indicator_result.value
+                trend_signal = indicator_result.signal
+                trend_strength = indicator_result.strength or 0
+            except Exception as e:
+                print(f'Error calculating indicator for {settlement_date}: {e}')
+                continue
 
-            # Calculate trend indicator using the specified variations
+            # For backward compatibility, also calculate the original values
             opening_price = self.get_opening_price(opening_date)
             prev_close = self.get_prev_close(prev_day, settlement_date)
             high_price = self.get_high_price(opening_date, settlement_date)
             low_price = self.get_low_price(opening_date, settlement_date)
-            trend_indicator = prev_close - opening_price
 
             # Get additional settlement day data
             settlement_row = self.data[self.data['Date'] == settlement_date].iloc[0]
@@ -342,16 +381,16 @@ class TaiwanFuturesBacktest:
             settlement_high = settlement_row['High']
             settlement_low = settlement_row['Low']
 
-            # Determine trade direction
-            if trend_indicator > 0:
+            # Determine trade direction based on indicator signal
+            if trend_signal == 1:  # Long signal
                 direction = 'long'
                 pnl = settlement_close - settlement_open
                 pnl_pct = pnl / settlement_open * 100
-            elif trend_indicator < 0:
+            elif trend_signal == -1:  # Short signal
                 direction = 'short'
                 pnl = settlement_open - settlement_close
                 pnl_pct = pnl / settlement_open * 100
-            else:
+            else:  # No trade signal
                 direction = 'no_trade'
                 pnl = 0
                 pnl_pct = 0
@@ -374,7 +413,9 @@ class TaiwanFuturesBacktest:
                 'prev_day': prev_day,
                 'opening_price': opening_price,
                 'prev_close': prev_close,
-                'trend_indicator': trend_indicator,
+                'trend_indicator': trend_indicator_value,  # Use the indicator value
+                'trend_signal': trend_signal,  # Add the signal
+                'trend_strength': trend_strength,  # Add the strength
                 'direction': direction,
                 'settlement_open': settlement_open,
                 'settlement_close': settlement_close,
@@ -383,7 +424,7 @@ class TaiwanFuturesBacktest:
                 'is_red_candle': is_red_candle,
                 'is_high_open': is_high_open,
                 'body_ratio': body_ratio,
-                'trend_direction': 'up' if trend_indicator > 0 else 'down'
+                'trend_direction': 'up' if trend_indicator_value > 0 else 'down'
             }
 
             results.append(result)
