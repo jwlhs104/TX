@@ -898,39 +898,62 @@ class TaiwanFuturesBacktest:
         df['cumulative_change_pct'] = df['actual_change_pct'].cumsum()
         df['cumulative_strategy_return_pct'] = df['strategy_return_pct'].cumsum()
 
+        # Calculate proportion of trades (0 to 1) for X-axis
+        n_trades = len(df)
+        proportions = np.arange(n_trades) / (n_trades - 1) if n_trades > 1 else [0]
+
         # Create figure with 2 subplots - Chinese font already set at module level
         fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(14, 12))
 
         # ========== First plot: Cumulative Change (actual price movements) ==========
+        # Get data for plotting
+        indicator_values = df['indicator'].values
+        cumulative_change_values = df['cumulative_change_pct'].values
+        actual_change_values = df['actual_change_pct'].values
+
         # Plot cumulative line
-        ax1.plot(df['indicator'], df['cumulative_change_pct'],
+        ax1.plot(proportions, cumulative_change_values,
                linewidth=2.5, color='steelblue', alpha=0.8, label='Cumulative Change')
 
-        # Add scatter points for better visibility
-        scatter1 = ax1.scatter(df['indicator'], df['cumulative_change_pct'],
-                           s=30, c=df['actual_change_pct'], cmap='RdYlGn',
+        # Add scatter points for better visibility (color by individual trade return)
+        scatter1 = ax1.scatter(proportions, cumulative_change_values,
+                           s=30, c=actual_change_values, cmap='RdYlGn',
                            edgecolors='black', linewidth=0.3, alpha=0.6, zorder=5)
 
         # Add reference lines
         ax1.axhline(y=0, color='gray', linestyle='-', linewidth=1.5, alpha=0.7, label='Zero Line')
-        ax1.axvline(x=0, color='red', linestyle='--', linewidth=2, alpha=0.7, label='Indicator Zero (Current Split)')
+
+        # Find where indicator crosses zero for vertical line
+        zero_crossing_idx = None
+        for i in range(len(indicator_values) - 1):
+            if indicator_values[i] <= 0 <= indicator_values[i + 1]:
+                zero_crossing_idx = i + (0 - indicator_values[i]) / (indicator_values[i + 1] - indicator_values[i])
+                break
+
+        # Add vertical line where indicator crosses zero
+        if zero_crossing_idx is not None:
+            zero_crossing_x = zero_crossing_idx / (len(proportions) - 1) if len(proportions) > 1 else 0
+            ax1.axvline(x=zero_crossing_x, color='red', linestyle='--', linewidth=2, alpha=0.7,
+                       label=f'Indicator Zero (x={zero_crossing_x:.2f})')
 
         # Find the point where cumulative change is min/max (potential optimal thresholds)
         min_idx = df['cumulative_change_pct'].idxmin()
         max_idx = df['cumulative_change_pct'].idxmax()
 
+        min_proportion = proportions[min_idx]
+        max_proportion = proportions[max_idx]
         min_indicator = df.loc[min_idx, 'indicator']
         max_indicator = df.loc[max_idx, 'indicator']
         min_cumulative = df.loc[min_idx, 'cumulative_change_pct']
         max_cumulative = df.loc[max_idx, 'cumulative_change_pct']
 
         # Mark optimal points
-        ax1.scatter([min_indicator], [min_cumulative], s=200, c='red',
+        ax1.scatter([min_proportion], [min_cumulative], s=200, c='red',
                   marker='v', edgecolors='black', linewidth=2, zorder=10,
-                  label=f'Min Point (Indicator={min_indicator:.0f})')
-        ax1.scatter([max_indicator], [max_cumulative], s=200, c='green',
+                  label=f'Min Point (Ind={min_indicator:.0f})')
+        ax1.scatter([max_proportion], [max_cumulative], s=200, c='green',
                   marker='^', edgecolors='black', linewidth=2, zorder=10,
-                  label=f'Max Point (Indicator={max_indicator:.0f})')
+                  label=f'Max Point (Ind={max_indicator:.0f})')
 
         # Add colorbar
         cbar1 = plt.colorbar(scatter1, ax=ax1)
@@ -940,7 +963,7 @@ class TaiwanFuturesBacktest:
         final_cumulative = df['cumulative_change_pct'].iloc[-1]
 
         # Labels and title for first plot
-        ax1.set_xlabel('Indicator Value (Sorted Low to High)', fontsize=12, fontweight='bold')
+        ax1.set_xlabel('Proportion of Trades (Sorted by Indicator)', fontsize=12, fontweight='bold')
         ax1.set_ylabel('Cumulative Change (%)', fontsize=12, fontweight='bold')
         ax1.set_title(f'Indicator Value vs Cumulative Change (Actual Price Movements)\nTotal Cumulative: {final_cumulative:.2f}%',
                     fontsize=14, fontweight='bold', pad=20)
@@ -952,35 +975,46 @@ class TaiwanFuturesBacktest:
         ax1.legend(loc='upper left', fontsize=9)
 
         # ========== Second plot: Cumulative Strategy Return (based on indicator signals) ==========
+        # Get data for plotting
+        cumulative_strategy_values = df['cumulative_strategy_return_pct'].values
+        strategy_return_values = df['strategy_return_pct'].values
+
         # Plot cumulative line
-        ax2.plot(df['indicator'], df['cumulative_strategy_return_pct'],
+        ax2.plot(proportions, cumulative_strategy_values,
                linewidth=2.5, color='darkgreen', alpha=0.8, label='Cumulative Strategy Return')
 
-        # Add scatter points for better visibility
-        scatter2 = ax2.scatter(df['indicator'], df['cumulative_strategy_return_pct'],
-                           s=30, c=df['strategy_return_pct'], cmap='RdYlGn',
+        # Add scatter points for better visibility (color by strategy return)
+        scatter2 = ax2.scatter(proportions, cumulative_strategy_values,
+                           s=30, c=strategy_return_values, cmap='RdYlGn',
                            edgecolors='black', linewidth=0.3, alpha=0.6, zorder=5)
 
         # Add reference lines
         ax2.axhline(y=0, color='gray', linestyle='-', linewidth=1.5, alpha=0.7, label='Zero Line')
-        ax2.axvline(x=0, color='red', linestyle='--', linewidth=2, alpha=0.7, label='Indicator Zero (Current Split)')
+
+        # Add vertical line where indicator crosses zero (same as first plot)
+        if zero_crossing_idx is not None:
+            zero_crossing_x = zero_crossing_idx / (len(proportions) - 1) if len(proportions) > 1 else 0
+            ax2.axvline(x=zero_crossing_x, color='red', linestyle='--', linewidth=2, alpha=0.7,
+                       label=f'Indicator Zero (x={zero_crossing_x:.2f})')
 
         # Find the point where cumulative strategy return is min/max
         min_idx_strategy = df['cumulative_strategy_return_pct'].idxmin()
         max_idx_strategy = df['cumulative_strategy_return_pct'].idxmax()
 
+        min_proportion_strategy = proportions[min_idx_strategy]
+        max_proportion_strategy = proportions[max_idx_strategy]
         min_indicator_strategy = df.loc[min_idx_strategy, 'indicator']
         max_indicator_strategy = df.loc[max_idx_strategy, 'indicator']
         min_cumulative_strategy = df.loc[min_idx_strategy, 'cumulative_strategy_return_pct']
         max_cumulative_strategy = df.loc[max_idx_strategy, 'cumulative_strategy_return_pct']
 
         # Mark optimal points
-        ax2.scatter([min_indicator_strategy], [min_cumulative_strategy], s=200, c='red',
+        ax2.scatter([min_proportion_strategy], [min_cumulative_strategy], s=200, c='red',
                   marker='v', edgecolors='black', linewidth=2, zorder=10,
-                  label=f'Min Point (Indicator={min_indicator_strategy:.0f})')
-        ax2.scatter([max_indicator_strategy], [max_cumulative_strategy], s=200, c='green',
+                  label=f'Min Point (Ind={min_indicator_strategy:.0f})')
+        ax2.scatter([max_proportion_strategy], [max_cumulative_strategy], s=200, c='green',
                   marker='^', edgecolors='black', linewidth=2, zorder=10,
-                  label=f'Max Point (Indicator={max_indicator_strategy:.0f})')
+                  label=f'Max Point (Ind={max_indicator_strategy:.0f})')
 
         # Add colorbar
         cbar2 = plt.colorbar(scatter2, ax=ax2)
@@ -990,7 +1024,7 @@ class TaiwanFuturesBacktest:
         final_cumulative_strategy = df['cumulative_strategy_return_pct'].iloc[-1]
 
         # Labels and title for second plot
-        ax2.set_xlabel('Indicator Value (Sorted Low to High)', fontsize=12, fontweight='bold')
+        ax2.set_xlabel('Proportion of Trades (Sorted by Indicator)', fontsize=12, fontweight='bold')
         ax2.set_ylabel('Cumulative Strategy Return (%)', fontsize=12, fontweight='bold')
         ax2.set_title(f'Indicator Value vs Cumulative Strategy Return (Based on Indicator Signals)\nTotal Cumulative: {final_cumulative_strategy:.2f}%',
                     fontsize=14, fontweight='bold', pad=20)
