@@ -21,6 +21,8 @@ def run_backtest(args):
         PriceDifferenceIndicator,
         MovingAverageIndicator,
         MomentumIndicator,
+        CandleColorIndicator,
+        OpeningPositionIndicator,
         IndicatorCombiner,
         CombinationMode
     )
@@ -68,6 +70,20 @@ def run_backtest(args):
                     price_type=price_type
                 )
                 indicators_to_test.append((f'Momentum{period}_{price_type}', ind))
+            elif ind_type == 'candle' or ind_type == 'candle-color':
+                invert = (parts[1].lower() == 'invert') if len(parts) > 1 else False
+                ind = CandleColorIndicator(
+                    name="CandleColor" + ("_Inverted" if invert else ""),
+                    invert=invert
+                )
+                indicators_to_test.append(('CandleColor' + ('_Inverted' if invert else ''), ind))
+            elif ind_type == 'opening' or ind_type == 'opening-position':
+                invert = (parts[1].lower() == 'invert') if len(parts) > 1 else False
+                ind = OpeningPositionIndicator(
+                    name="OpeningPosition" + ("_Inverted" if invert else ""),
+                    invert=invert
+                )
+                indicators_to_test.append(('OpeningPosition' + ('_Inverted' if invert else ''), ind))
             else:
                 print(f"Warning: Unknown indicator type '{ind_type}', skipping")
 
@@ -400,6 +416,12 @@ Examples:
   # Run with multiple different indicators
   python cli.py backtest --indicators price-diff ma:5:close momentum:10
 
+  # Run with candle color and opening position indicators
+  python cli.py backtest --indicators candle opening
+
+  # Run with inverted candle color indicator
+  python cli.py backtest --indicators candle:invert
+
   # Run backtest with benchmark comparison (settlement vs other weekdays)
   python cli.py backtest --benchmark
 
@@ -477,9 +499,9 @@ Examples:
     backtest_parser.add_argument(
         '--indicators',
         nargs='+',
-        help='Indicator(s) to use. Format: TYPE[:PERIOD[:PRICE_TYPE]]. '
-             'Types: price-diff, ma, momentum. '
-             'Examples: ma:5:close, momentum:10, price-diff. '
+        help='Indicator(s) to use. Format: TYPE[:PARAM]. '
+             'Types: price-diff, ma, momentum, candle, opening. '
+             'Examples: ma:5:close, momentum:10, candle, candle:invert, opening:invert. '
              'Multiple indicators run separately plus one combined backtest.'
     )
     backtest_parser.set_defaults(func=run_backtest)
