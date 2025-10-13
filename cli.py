@@ -17,6 +17,13 @@ from pathlib import Path
 def run_backtest(args):
     """Run Taiwan Futures backtest"""
     from taiwan_futures_backtest import TaiwanFuturesBacktest
+    from indicators import (
+        PriceDifferenceIndicator,
+        MovingAverageIndicator,
+        MomentumIndicator,
+        IndicatorCombiner,
+        CombinationMode
+    )
 
     print("="*80)
     print("Taiwan Futures Settlement Day Backtest")
@@ -27,6 +34,58 @@ def run_backtest(args):
     print(f"Date range: {args.start_date} to {args.end_date}")
     if args.benchmark:
         print(f"Benchmark mode: Enabled (comparing with other weekdays)")
+    print()
+
+    # Parse indicators from CLI
+    indicators_to_test = []
+    if hasattr(args, 'indicators') and args.indicators:
+        for ind_spec in args.indicators:
+            parts = ind_spec.split(':')
+            ind_type = parts[0]
+
+            if ind_type == 'price-diff':
+                ind = PriceDifferenceIndicator(
+                    name="PriceDiff",
+                    opening_price_calc=args.opening_price_calc,
+                    prev_close_calc=args.prev_close_calc
+                )
+                indicators_to_test.append(('Price Difference', ind))
+            elif ind_type == 'ma':
+                period = int(parts[1]) if len(parts) > 1 else 5
+                price_type = parts[2] if len(parts) > 2 else 'close'
+                ind = MovingAverageIndicator(
+                    name=f"MA{period}",
+                    period=period,
+                    price_type=price_type
+                )
+                indicators_to_test.append((f'MA{period}_{price_type}', ind))
+            elif ind_type == 'momentum':
+                period = int(parts[1]) if len(parts) > 1 else 5
+                price_type = parts[2] if len(parts) > 2 else 'close'
+                ind = MomentumIndicator(
+                    name=f"Momentum{period}",
+                    period=period,
+                    price_type=price_type
+                )
+                indicators_to_test.append((f'Momentum{period}_{price_type}', ind))
+            else:
+                print(f"Warning: Unknown indicator type '{ind_type}', skipping")
+
+    # If no indicators specified, use default
+    if not indicators_to_test:
+        indicators_to_test.append((
+            'Default (Price Difference)',
+            PriceDifferenceIndicator(
+                opening_price_calc=args.opening_price_calc,
+                prev_close_calc=args.prev_close_calc
+            )
+        ))
+
+    print(f"Will run {len(indicators_to_test)} individual backtest(s)", end='')
+    if len(indicators_to_test) > 1:
+        print(f" + 1 combined backtest")
+    else:
+        print()
     print()
 
     # If benchmark mode is enabled, use the benchmark tester
@@ -70,42 +129,113 @@ def run_backtest(args):
             sys.exit(1)
     else:
         # Regular backtest mode
-        # Initialize backtester
-        backtester = TaiwanFuturesBacktest(
-            start_date=args.start_date,
-            end_date=args.end_date,
-            counting_period=args.counting_period,
-            opening_price_calc=args.opening_price_calc,
-            prev_close_calc=args.prev_close_calc
-        )
+        all_backtests = []
 
-        # Run analysis
         try:
-            print("1. Loading data...")
-            backtester.get_taiwan_futures_data()
+            # Run backtest for each individual indicator
+            for i, (ind_name, indicator) in enumerate(indicators_to_test, 1):
+                print("="*80)
+                print(f"Running Backtest {i}/{len(indicators_to_test)}: {ind_name}")
+                print("="*80)
 
-            print("2. Calculating settlement dates...")
-            backtester.calculate_settlement_dates()
+                backtester = TaiwanFuturesBacktest(
+                    start_date=args.start_date,
+                    end_date=args.end_date,
+                    counting_period=args.counting_period,
+                    opening_price_calc=args.opening_price_calc,
+                    prev_close_calc=args.prev_close_calc,
+                    trend_indicator=indicator
+                )
 
-            print("3. Running backtest...")
-            backtester.run_backtest()
+                print("1. Loading data...")
+                backtester.get_taiwan_futures_data()
 
-            print("4. Generating report...")
-            backtester.generate_report()
+                print("2. Calculating settlement dates...")
+                backtester.calculate_settlement_dates()
 
-            if not args.no_plots:
-                print("5. Creating visualizations...")
-                backtester.create_performance_plots()
+                print("3. Running backtest...")
+                backtester.run_backtest()
 
-            print("6. Saving results...")
-            backtester.save_detailed_results()
+                print("4. Generating report...")
+                backtester.generate_report()
 
-            if not args.no_markdown:
-                print("7. Saving markdown report...")
-                backtester.save_results_summary_to_md()
+                if not args.no_plots:
+                    print("5. Creating visualizations...")
+                    backtester.create_performance_plots()
+
+                print("6. Saving results...")
+                backtester.save_detailed_results()
+
+                if not args.no_markdown:
+                    print("7. Saving markdown report...")
+                    backtester.save_results_summary_to_md()
+
+                all_backtests.append((ind_name, backtester))
+                print()
+
+            # If multiple indicators, run combined backtest
+            if len(indicators_to_test) > 1:
+                print("="*80)
+                print(f"Running Combined Backtest ({len(indicators_to_test)} indicators)")
+                print("="*80)
+
+                # Create combined indicator with equal weights
+                combined_indicators = [(ind, 1.0) for _, ind in indicators_to_test]
+                combined = IndicatorCombiner(
+                    indicators=combined_indicators,
+                    mode=CombinationMode.WEIGHTED,
+                    name="Combined_Equal_Weights"
+                )
+
+                backtester = TaiwanFuturesBacktest(
+                    start_date=args.start_date,
+                    end_date=args.end_date,
+                    counting_period=args.counting_period,
+                    opening_price_calc=args.opening_price_calc,
+                    prev_close_calc=args.prev_close_calc,
+                    trend_indicator=combined
+                )
+
+                print("1. Loading data...")
+                backtester.get_taiwan_futures_data()
+
+                print("2. Calculating settlement dates...")
+                backtester.calculate_settlement_dates()
+
+                print("3. Running backtest...")
+                backtester.run_backtest()
+
+                print("4. Generating report...")
+                backtester.generate_report()
+
+                if not args.no_plots:
+                    print("5. Creating visualizations...")
+                    backtester.create_performance_plots()
+
+                print("6. Saving results...")
+                backtester.save_detailed_results()
+
+                if not args.no_markdown:
+                    print("7. Saving markdown report...")
+                    backtester.save_results_summary_to_md()
+
+                all_backtests.append(('Combined (Equal Weights)', backtester))
+                print()
+
+            # Print summary comparison
+            if len(all_backtests) > 1:
+                print("\n" + "="*80)
+                print("BACKTEST COMPARISON SUMMARY")
+                print("="*80)
+                for ind_name, bt in all_backtests:
+                    stats = bt.calculate_performance_stats()
+                    print(f"\n{ind_name}:")
+                    print(f"  勝率: {stats['勝率']}")
+                    print(f"  平均獲利: {stats['平均獲利']:.2f}")
+                    print(f"  總獲利: {stats['總獲利']:.2f}")
 
             print("\n" + "="*80)
-            print("✓ Backtest completed successfully!")
+            print("✓ All backtests completed successfully!")
             print("="*80)
 
         except Exception as e:
@@ -244,6 +374,15 @@ Examples:
   # Run backtest with night session prices
   python cli.py backtest --opening-price-calc night --prev-close-calc night
 
+  # Run backtest with a single indicator (Moving Average, period 5)
+  python cli.py backtest --indicators ma:5:close
+
+  # Run backtest with two indicators (runs 3 backtests: MA5, MA10, Combined)
+  python cli.py backtest --indicators ma:5 ma:10
+
+  # Run with multiple different indicators
+  python cli.py backtest --indicators price-diff ma:5:close momentum:10
+
   # Run backtest with benchmark comparison (settlement vs other weekdays)
   python cli.py backtest --benchmark
 
@@ -317,6 +456,14 @@ Examples:
         type=int,
         default=500,
         help='Maximum dates to test per weekday in benchmark mode (default: 500)'
+    )
+    backtest_parser.add_argument(
+        '--indicators',
+        nargs='+',
+        help='Indicator(s) to use. Format: TYPE[:PERIOD[:PRICE_TYPE]]. '
+             'Types: price-diff, ma, momentum. '
+             'Examples: ma:5:close, momentum:10, price-diff. '
+             'Multiple indicators run separately plus one combined backtest.'
     )
     backtest_parser.set_defaults(func=run_backtest)
 
