@@ -181,12 +181,25 @@ def run_backtest(args):
                 print(f"Running Combined Backtest ({len(indicators_to_test)} indicators)")
                 print("="*80)
 
-                # Create combined indicator with equal weights
+                # Create a preliminary backtester for training
+                preliminary_backtester = TaiwanFuturesBacktest(
+                    start_date=args.start_date,
+                    end_date=args.end_date,
+                    counting_period=args.counting_period,
+                    opening_price_calc=args.opening_price_calc,
+                    prev_close_calc=args.prev_close_calc,
+                    trend_indicator=None  # Will be set later
+                )
+                preliminary_backtester.get_taiwan_futures_data()
+                preliminary_backtester.calculate_settlement_dates()
+
+                # Create combined indicator with ADAPTIVE_QUADRANT mode
                 combined_indicators = [(ind, 1.0) for _, ind in indicators_to_test]
                 combined = IndicatorCombiner(
                     indicators=combined_indicators,
-                    mode=CombinationMode.WEIGHTED,
-                    name="Combined_Equal_Weights"
+                    mode=CombinationMode.ADAPTIVE_QUADRANT,
+                    name="Combined_Adaptive_Quadrant",
+                    backtester=preliminary_backtester
                 )
 
                 backtester = TaiwanFuturesBacktest(
@@ -212,18 +225,18 @@ def run_backtest(args):
 
                 if not args.no_plots:
                     print("5. Creating visualizations...")
-                    backtester.create_performance_plots(indicator_name='Combined_Equal_Weights')
+                    backtester.create_performance_plots(indicator_name='Combined_Adaptive_Quadrant')
                     print("5.1. Creating indicator analysis plot...")
-                    backtester.create_indicator_analysis_plot(indicator_name='Combined_Equal_Weights')
+                    backtester.create_indicator_analysis_plot(indicator_name='Combined_Adaptive_Quadrant')
 
                 print("6. Saving results...")
-                backtester.save_detailed_results(indicator_name='Combined_Equal_Weights')
+                backtester.save_detailed_results(indicator_name='Combined_Adaptive_Quadrant')
 
                 if not args.no_markdown:
                     print("7. Saving markdown report...")
-                    backtester.save_results_summary_to_md(indicator_name='Combined_Equal_Weights')
+                    backtester.save_results_summary_to_md(indicator_name='Combined_Adaptive_Quadrant')
 
-                all_backtests.append(('Combined (Equal Weights)', backtester))
+                all_backtests.append(('Combined (Adaptive Quadrant)', backtester))
                 print()
 
             # Print summary comparison

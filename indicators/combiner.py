@@ -18,11 +18,14 @@ class CombinationMode(Enum):
     MAJORITY: Majority of indicators determine the signal
     ANY_SIGNAL: Any indicator with a signal triggers it (OR logic)
     WEIGHTED: Weighted average of indicator signals and strengths
+    ADAPTIVE_QUADRANT: Adaptive strategy based on historical performance of each quadrant
+                       (2 indicators = 4 quadrants, 3 = 8, 4 = 16, max 5 = 32)
     """
     ALL_AGREE = "all_agree"
     MAJORITY = "majority"
     ANY_SIGNAL = "any_signal"
     WEIGHTED = "weighted"
+    ADAPTIVE_QUADRANT = "adaptive_quadrant"
 
 
 class IndicatorCombiner(TrendIndicator):
@@ -37,7 +40,8 @@ class IndicatorCombiner(TrendIndicator):
         self,
         indicators: List[Tuple[TrendIndicator, float]],
         mode: CombinationMode = CombinationMode.WEIGHTED,
-        name: str = "CombinedIndicator"
+        name: str = "CombinedIndicator",
+        backtester=None
     ):
         """
         Initialize the indicator combiner
@@ -47,10 +51,23 @@ class IndicatorCombiner(TrendIndicator):
                        Weights are used in WEIGHTED mode, ignored in others
             mode: How to combine the indicators
             name: Custom name for this combined indicator
+            backtester: TaiwanFuturesBacktest instance (required for ADAPTIVE_QUADRANT mode)
         """
         super().__init__(name)
         self.indicators = indicators
         self.mode = mode
+        self.backtester = backtester
+
+        # For adaptive quadrant mode
+        self.quadrant_signals = {}  # Maps quadrant tuple to optimal signal
+        self.is_trained = False
+
+        # Validate max indicators for adaptive quadrant mode
+        if mode == CombinationMode.ADAPTIVE_QUADRANT:
+            if len(indicators) > 5:
+                raise ValueError(f"ADAPTIVE_QUADRANT mode supports maximum 5 indicators, got {len(indicators)}")
+            if len(indicators) < 2:
+                raise ValueError(f"ADAPTIVE_QUADRANT mode requires at least 2 indicators, got {len(indicators)}")
 
         # Normalize weights if using weighted mode
         if mode == CombinationMode.WEIGHTED:
@@ -108,6 +125,8 @@ class IndicatorCombiner(TrendIndicator):
             return self._combine_any_signal(results)
         elif self.mode == CombinationMode.WEIGHTED:
             return self._combine_weighted(results)
+        elif self.mode == CombinationMode.ADAPTIVE_QUADRANT:
+            return self._combine_adaptive_quadrant(results, opening_date, settlement_date, data)
         else:
             raise ValueError(f"Unsupported combination mode: {self.mode}")
 
@@ -247,6 +266,160 @@ class IndicatorCombiner(TrendIndicator):
                 'individual_weights': [w for _, w in results]
             }
         )
+
+    def _combine_adaptive_quadrant(
+        self,
+        results: List[Tuple[IndicatorResult, float]],
+        opening_date: pd.Timestamp,
+        settlement_date: pd.Timestamp,
+        data: pd.DataFrame
+    ) -> IndicatorResult:
+        """
+        Adaptive strategy based on historical performance of each quadrant
+
+        This method uses historical data to determine the optimal trading direction
+        for each combination of indicator states (quadrants).
+
+        For 2 indicators: 4 quadrants (+A+B, +A-B, -A+B, -A-B)
+        For 3 indicators: 8 quadrants
+        For 4 indicators: 16 quadrants
+        For 5 indicators: 32 quadrants
+        """
+        # Train the quadrant signals if not already done
+        if not self.is_trained:
+            self._train_quadrant_signals(data)
+
+        # Get current quadrant based on indicator signals
+        quadrant = tuple(result.signal for result, _ in results)
+
+        # Look up the optimal signal for this quadrant
+        optimal_signal = self.quadrant_signals.get(quadrant, 0)
+
+        # Calculate average value and strength
+        avg_value = sum(r.value for r, _ in results) / len(results)
+        avg_strength = sum(r.strength or 0 for r, _ in results) / len(results)
+
+        # Get quadrant statistics if available
+        quadrant_stats = self.quadrant_signals.get(f"{quadrant}_stats", {})
+
+        return IndicatorResult(
+            value=avg_value,
+            signal=optimal_signal,
+            strength=avg_strength,
+            metadata={
+                'mode': 'adaptive_quadrant',
+                'quadrant': quadrant,
+                'quadrant_stats': quadrant_stats,
+                'individual_signals': [r.signal for r, _ in results],
+                'total_quadrants': 2 ** len(self.indicators)
+            }
+        )
+
+    def _train_quadrant_signals(self, data: pd.DataFrame):
+        """
+        Train the quadrant signals based on historical data
+
+        This method analyzes all historical trades, groups them by their
+        indicator combination state (quadrant), and determines the optimal
+        trading direction for each quadrant based on cumulative returns.
+        """
+        if self.backtester is None:
+            raise ValueError("ADAPTIVE_QUADRANT mode requires a backtester instance")
+
+        print(f"Training adaptive quadrant strategy with {len(self.indicators)} indicators...")
+        print(f"Total quadrants: {2 ** len(self.indicators)}")
+
+        # Get settlement dates from backtester
+        if not hasattr(self.backtester, 'settlement_dates') or self.backtester.settlement_dates is None:
+            raise ValueError("Backtester must have settlement dates calculated")
+
+        settlement_dates = self.backtester.settlement_dates
+
+        # Collect historical data for all trades
+        quadrant_data = {}  # Maps quadrant tuple to list of actual price changes
+
+        for _, settlement_row in settlement_dates.iterrows():
+            settlement_date = settlement_row['date']
+
+            # Calculate opening date
+            opening_date = self.backtester.calculate_opening_date(settlement_date)
+            if opening_date is None:
+                continue
+
+            try:
+                # Calculate each indicator for this trade
+                indicator_signals = []
+                for indicator, _ in self.indicators:
+                    result = indicator.calculate(opening_date, settlement_date, data)
+                    indicator_signals.append(result.signal)
+
+                # Create quadrant tuple
+                quadrant = tuple(indicator_signals)
+
+                # Get actual price change on settlement day
+                settlement_day_data = data[data['Date'] == settlement_date]
+                if len(settlement_day_data) == 0:
+                    continue
+
+                settlement_row_data = settlement_day_data.iloc[0]
+                actual_change_pct = (settlement_row_data['Close'] - settlement_row_data['Open']) / settlement_row_data['Open'] * 100
+
+                # Store in quadrant data
+                if quadrant not in quadrant_data:
+                    quadrant_data[quadrant] = []
+                quadrant_data[quadrant].append(actual_change_pct)
+
+            except Exception as e:
+                # Skip this trade if there's an error
+                continue
+
+        # Analyze each quadrant and determine optimal signal
+        print("\nQuadrant Analysis:")
+        print("=" * 80)
+
+        for quadrant, changes in quadrant_data.items():
+            if len(changes) == 0:
+                continue
+
+            # Calculate statistics
+            total_change = sum(changes)
+            count = len(changes)
+            avg_change = total_change / count
+
+            # Determine optimal signal based on cumulative direction
+            if total_change > 0:
+                optimal_signal = 1  # Go long
+                direction = "LONG"
+            elif total_change < 0:
+                optimal_signal = -1  # Go short
+                direction = "SHORT"
+            else:
+                optimal_signal = 0  # No trade
+                direction = "NEUTRAL"
+
+            # Store optimal signal
+            self.quadrant_signals[quadrant] = optimal_signal
+
+            # Store statistics
+            self.quadrant_signals[f"{quadrant}_stats"] = {
+                'total_change': total_change,
+                'count': count,
+                'avg_change': avg_change,
+                'direction': direction
+            }
+
+            # Format quadrant for display
+            quadrant_str = ' '.join([
+                f"{ind.name}:{'+'if sig==1 else '-' if sig==-1 else '0'}"
+                for (ind, _), sig in zip(self.indicators, quadrant)
+            ])
+
+            print(f"{quadrant_str:50} | Count: {count:3} | Avg: {avg_change:7.2f}% | Total: {total_change:8.2f}% | Signal: {direction}")
+
+        print("=" * 80)
+        print(f"Training complete! {len(quadrant_data)} quadrants analyzed.\n")
+
+        self.is_trained = True
 
     def __str__(self):
         indicator_names = [ind.name for ind, _ in self.indicators]
