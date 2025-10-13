@@ -1301,18 +1301,6 @@ class TaiwanFuturesBacktest:
         print(f"凱利: {overall_stats.get('凱利', 'N/A')}")
         print(f"最大回撤: {overall_stats.get('最大回撤', 'N/A')}")
 
-        # Filter analysis
-        filter_analysis = self.analyze_filters()
-
-        print(f"\n【濾網分析 Filter Analysis】")
-
-        for filter_name, filter_data in filter_analysis.items():
-            print(f"\n{filter_name}:")
-            for condition, stats in filter_data.items():
-                if stats and stats.get('總次', 0) > 0:
-                    print(f"  {condition}: 筆均={stats.get('筆均', 0):.2f}%, 淨利={stats.get('淨利', 0):.2f}%, 總獲利={stats.get('總獲利', 0):.2f}%, 總虧損={stats.get('總虧損', 0):.2f}%, 勝率={stats.get('勝率', 'N/A')}, 勝次={stats.get('勝次', 0)}, 敗次={stats.get('敗次', 0)}, 總次={stats.get('總次', 0)}")
-                else:
-                    print(f"  {condition}: 無交易數據")
 
         print("\n" + "="*80)
         print("報告生成完成 Report Generation Complete")
@@ -1403,6 +1391,7 @@ def main():
         volatility_analysis = backtester.analyze_volatility_patterns()
         seasonal_analysis = backtester.analyze_seasonal_patterns()
         risk_metrics = backtester.calculate_risk_metrics()
+        filter_analysis = self.analyze_filters()
 
         # Create visualizations
         print("\n6. 生成圖表 Creating Visualizations...")
