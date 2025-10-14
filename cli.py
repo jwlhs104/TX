@@ -136,12 +136,19 @@ def run_backtest(args):
         from utils.benchmark_test import FixedDayBenchmarkTest
 
         try:
+            # Use the first indicator for benchmark testing (or None for default)
+            indicator = indicators_to_test[0][1] if indicators_to_test else None
+            indicator_name = indicators_to_test[0][0] if indicators_to_test else "Default"
+
+            print(f"Running benchmark with indicator: {indicator_name}")
+
             # Initialize benchmark tester
             benchmark_tester = FixedDayBenchmarkTest(
                 start_date=args.start_date,
                 end_date=args.end_date,
                 opening_price_calc=args.opening_price_calc,
-                prev_close_calc=args.prev_close_calc
+                prev_close_calc=args.prev_close_calc,
+                trend_indicator=indicator
             )
 
             print("1. Loading data...")

@@ -27,11 +27,13 @@ plt.rcParams['axes.unicode_minus'] = False
 
 class FixedDayBenchmarkTest:
     def __init__(self, start_date='2017-05-16', end_date='2024-12-31',
-                 opening_price_calc="standard", prev_close_calc="standard"):
+                 opening_price_calc="standard", prev_close_calc="standard",
+                 trend_indicator=None):
         self.start_date = start_date
         self.end_date = end_date
         self.opening_price_calc = opening_price_calc
         self.prev_close_calc = prev_close_calc
+        self.trend_indicator = trend_indicator
         self.data = None
         self.settlement_results = None
         self.benchmark_results = {}
@@ -42,7 +44,8 @@ class FixedDayBenchmarkTest:
             end_date=end_date,
             counting_period="weekly",  # Fixed to weekly for benchmark comparison
             opening_price_calc=opening_price_calc,
-            prev_close_calc=prev_close_calc
+            prev_close_calc=prev_close_calc,
+            trend_indicator=trend_indicator
         )
 
         # Weekday mapping for readable names
@@ -170,10 +173,25 @@ class FixedDayBenchmarkTest:
             if not (self.data['Date'] == prev_day).any():
                 continue
 
-            # Calculate trend indicator using the same logic as settlement days
-            opening_price = self.get_opening_price(opening_day)
-            prev_close = self.get_prev_close(prev_day, target_date)
-            trend_indicator = prev_close - opening_price
+            # Calculate trend indicator
+            if self.trend_indicator is not None:
+                # Use custom trend indicator
+                indicator_result = self.trend_indicator.calculate(
+                    opening_day, target_date, self.data
+                )
+                trend_signal = indicator_result.signal
+                trend_value = indicator_result.value
+            else:
+                # Use default logic: prev_close - opening_price
+                opening_price = self.get_opening_price(opening_day)
+                prev_close = self.get_prev_close(prev_day, target_date)
+                trend_value = prev_close - opening_price
+                if trend_value > 0:
+                    trend_signal = 1
+                elif trend_value < 0:
+                    trend_signal = -1
+                else:
+                    trend_signal = 0
 
             # Get target day data
             target_row = self.data[self.data['Date'] == target_date].iloc[0]
@@ -183,11 +201,11 @@ class FixedDayBenchmarkTest:
             target_low = target_row['Low']
 
             # Apply the same trading strategy
-            if trend_indicator > 0:
+            if trend_signal > 0:
                 direction = 'long'
                 pnl = target_close - target_open
                 pnl_pct = pnl / target_open * 100
-            elif trend_indicator < 0:
+            elif trend_signal < 0:
                 direction = 'short'
                 pnl = target_open - target_close
                 pnl_pct = pnl / target_open * 100
@@ -213,9 +231,8 @@ class FixedDayBenchmarkTest:
                 'weekday_name': weekday_name,
                 'opening_day': opening_day,
                 'prev_day': prev_day,
-                'opening_price': opening_price,
-                'prev_close': prev_close,
-                'trend_indicator': trend_indicator,
+                'trend_indicator': trend_value,
+                'trend_signal': trend_signal,
                 'direction': direction,
                 'target_open': target_open,
                 'target_close': target_close,
@@ -224,7 +241,7 @@ class FixedDayBenchmarkTest:
                 'is_red_candle': is_red_candle,
                 'is_high_open': is_high_open,
                 'body_ratio': body_ratio,
-                'trend_direction': 'up' if trend_indicator > 0 else 'down'
+                'trend_direction': 'up' if trend_signal > 0 else 'down'
             }
 
             results.append(result)
