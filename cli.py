@@ -23,6 +23,7 @@ def run_backtest(args):
         MomentumIndicator,
         CandleColorIndicator,
         OpeningPositionIndicator,
+        WeeklyPatternIndicator,
         IndicatorCombiner,
         CombinationMode
     )
@@ -84,6 +85,32 @@ def run_backtest(args):
                     invert=invert
                 )
                 indicators_to_test.append(('OpeningPosition' + ('_Inverted' if invert else ''), ind))
+            elif ind_type == 'weekly-pattern' or ind_type == 'weekly':
+                use_adaptive = (parts[1].lower() == 'adaptive') if len(parts) > 1 else False
+
+                # Create a preliminary backtester for adaptive mode
+                if use_adaptive:
+                    preliminary_backtester = TaiwanFuturesBacktest(
+                        start_date=args.start_date,
+                        end_date=args.end_date,
+                        counting_period=args.counting_period,
+                        opening_price_calc=args.opening_price_calc,
+                        prev_close_calc=args.prev_close_calc,
+                        trend_indicator=None
+                    )
+                    preliminary_backtester.get_taiwan_futures_data()
+                    preliminary_backtester.calculate_settlement_dates()
+                else:
+                    preliminary_backtester = None
+
+                ind = WeeklyPatternIndicator(
+                    name="WeeklyPattern" + ("_Adaptive" if use_adaptive else ""),
+                    opening_price_calc=args.opening_price_calc,
+                    prev_close_calc=args.prev_close_calc,
+                    use_adaptive=use_adaptive,
+                    backtester=preliminary_backtester
+                )
+                indicators_to_test.append(('WeeklyPattern' + ('_Adaptive' if use_adaptive else ''), ind))
             else:
                 print(f"Warning: Unknown indicator type '{ind_type}', skipping")
 
@@ -422,6 +449,12 @@ Examples:
   # Run with inverted candle color indicator
   python cli.py backtest --indicators candle:invert
 
+  # Run with weekly pattern indicator (rule-based)
+  python cli.py backtest --indicators weekly-pattern
+
+  # Run with weekly pattern indicator (adaptive mode)
+  python cli.py backtest --indicators weekly-pattern:adaptive
+
   # Run backtest with benchmark comparison (settlement vs other weekdays)
   python cli.py backtest --benchmark
 
@@ -500,8 +533,8 @@ Examples:
         '--indicators',
         nargs='+',
         help='Indicator(s) to use. Format: TYPE[:PARAM]. '
-             'Types: price-diff, ma, momentum, candle, opening. '
-             'Examples: ma:5:close, momentum:10, candle, candle:invert, opening:invert. '
+             'Types: price-diff, ma, momentum, candle, opening, weekly-pattern. '
+             'Examples: ma:5:close, momentum:10, candle, opening:invert, weekly-pattern, weekly-pattern:adaptive. '
              'Multiple indicators run separately plus one combined backtest.'
     )
     backtest_parser.set_defaults(func=run_backtest)

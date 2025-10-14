@@ -11,6 +11,7 @@ from .moving_average import MovingAverageIndicator
 from .momentum import MomentumIndicator
 from .candle_color import CandleColorIndicator
 from .opening_position import OpeningPositionIndicator
+from .weekly_pattern import WeeklyPatternIndicator
 from .combiner import IndicatorCombiner, CombinationMode
 
 __all__ = [
@@ -21,6 +22,7 @@ __all__ = [
     'MomentumIndicator',
     'CandleColorIndicator',
     'OpeningPositionIndicator',
+    'WeeklyPatternIndicator',
     'IndicatorCombiner',
     'CombinationMode',
 ]
