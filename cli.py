@@ -165,6 +165,8 @@ def run_backtest(args):
             if not args.no_plots:
                 print("4. Creating comparison plots...")
                 benchmark_tester.create_comparison_plots()
+                print("4.1. Creating cumulative returns plot...")
+                benchmark_tester.create_cumulative_returns_plot()
 
             print("5. Generating benchmark report...")
             benchmark_tester.generate_benchmark_report()

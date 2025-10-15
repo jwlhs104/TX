@@ -399,6 +399,70 @@ class FixedDayBenchmarkTest:
 
         return comparison_df
 
+    def create_cumulative_returns_plot(self):
+        """Create cumulative returns comparison plot over time"""
+        if not self.benchmark_results:
+            print("No benchmark results available for plotting.")
+            return
+
+        print("Creating cumulative returns comparison plot...")
+
+        # Set up the plot
+        plt.figure(figsize=(16, 10))
+
+        # Color scheme
+        colors = {
+            'Settlement Days': '#FF4444',  # Red for settlement days
+            'Monday': '#4444FF',           # Blue
+            'Tuesday': '#44FF44',          # Green
+            'Thursday': '#FF44FF',         # Magenta
+            'Friday': '#FFAA44'            # Orange
+        }
+
+        # Plot settlement day cumulative returns
+        settlement_results = self.settlement_backtester.results
+        if settlement_results is not None and len(settlement_results) > 0:
+            # Sort by settlement date
+            settlement_df = pd.DataFrame(settlement_results).sort_values('settlement_date')
+            cumulative_returns = settlement_df['pnl_pct'].cumsum()
+
+            plt.plot(settlement_df['settlement_date'], cumulative_returns,
+                    color=colors['Settlement Days'], linewidth=2.5,
+                    label='Settlement Days (Wednesday)', marker='o', markersize=3, alpha=0.8)
+
+        # Plot benchmark weekday cumulative returns
+        for weekday_name, results_df in self.benchmark_results.items():
+            if len(results_df) > 0:
+                # Sort by target date
+                results_df = results_df.sort_values('target_date')
+                cumulative_returns = results_df['pnl_pct'].cumsum()
+
+                plt.plot(results_df['target_date'], cumulative_returns,
+                        color=colors.get(weekday_name, '#888888'), linewidth=2,
+                        label=weekday_name, marker='o', markersize=2, alpha=0.7)
+
+        # Formatting
+        plt.title('Cumulative Returns Comparison: Settlement Days vs Other Weekdays',
+                 fontsize=16, fontweight='bold', pad=20)
+        plt.xlabel('Date', fontsize=14, fontweight='bold')
+        plt.ylabel('Cumulative Return (%)', fontsize=14, fontweight='bold')
+        plt.legend(loc='best', fontsize=12, framealpha=0.9)
+        plt.grid(True, alpha=0.3, linestyle='--')
+        plt.axhline(y=0, color='black', linestyle='-', linewidth=0.5, alpha=0.5)
+
+        # Format x-axis dates
+        plt.gcf().autofmt_xdate()
+
+        plt.tight_layout()
+
+        # Save the plot
+        plot_filename = OUTPUT_DIR / 'plots' / 'benchmark_cumulative_returns.png'
+        plt.savefig(plot_filename, dpi=300, bbox_inches='tight')
+        print(f"Cumulative returns plot saved to: {plot_filename}")
+        plt.close()
+
+        return plot_filename
+
     def create_comparison_plots(self):
         """Create comprehensive comparison plots"""
         if not self.benchmark_results:
