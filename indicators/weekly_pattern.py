@@ -59,7 +59,8 @@ class WeeklyPatternIndicator(TrendIndicator):
         opening_price_calc: str = "standard",
         prev_close_calc: str = "standard",
         use_adaptive: bool = False,
-        backtester = None
+        backtester = None,
+        train_end_date: str = None
     ):
         """
         Initialize the weekly pattern indicator
@@ -70,12 +71,15 @@ class WeeklyPatternIndicator(TrendIndicator):
             prev_close_calc: Method for calculating previous close ('standard', 'night', or 'settlement_open')
             use_adaptive: If True, use historical statistics to determine signals
             backtester: TaiwanFuturesBacktest instance (required for adaptive mode)
+            train_end_date: Optional cutoff date for training data (format: 'YYYY-MM-DD').
+                          If specified, only data up to this date will be used for training.
         """
         super().__init__(name)
         self.opening_price_calc = opening_price_calc
         self.prev_close_calc = prev_close_calc
         self.use_adaptive = use_adaptive
         self.backtester = backtester
+        self.train_end_date = pd.to_datetime(train_end_date) if train_end_date else None
 
         # For adaptive mode
         self.adaptive_signals = {}
@@ -354,13 +358,21 @@ class WeeklyPatternIndicator(TrendIndicator):
         if self.backtester is None:
             raise ValueError("Adaptive mode requires a backtester instance")
 
-        print(f"Training weekly pattern strategy...")
+        if self.train_end_date:
+            print(f"Training weekly pattern strategy (training data up to {self.train_end_date.strftime('%Y-%m-%d')})...")
+        else:
+            print(f"Training weekly pattern strategy...")
 
         # Get settlement dates from backtester
         if not hasattr(self.backtester, 'settlement_dates') or self.backtester.settlement_dates is None:
             raise ValueError("Backtester must have settlement dates calculated")
 
         settlement_dates = self.backtester.settlement_dates
+
+        # Filter settlement dates if train_end_date is specified
+        if self.train_end_date:
+            settlement_dates = settlement_dates[settlement_dates['date'] <= self.train_end_date]
+            print(f"  Using {len(settlement_dates)} settlement dates for training (up to {self.train_end_date.strftime('%Y-%m-%d')})")
 
         # Collect historical data for all patterns
         pattern_data = {}

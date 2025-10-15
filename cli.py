@@ -87,6 +87,7 @@ def run_backtest(args):
                 indicators_to_test.append(('OpeningPosition' + ('_Inverted' if invert else ''), ind))
             elif ind_type == 'weekly-pattern' or ind_type == 'weekly':
                 use_adaptive = (parts[1].lower() == 'adaptive') if len(parts) > 1 else False
+                train_end_date = parts[2] if len(parts) > 2 else None
 
                 # Create a preliminary backtester for adaptive mode
                 if use_adaptive:
@@ -108,9 +109,14 @@ def run_backtest(args):
                     opening_price_calc=args.opening_price_calc,
                     prev_close_calc=args.prev_close_calc,
                     use_adaptive=use_adaptive,
-                    backtester=preliminary_backtester
+                    backtester=preliminary_backtester,
+                    train_end_date=train_end_date
                 )
-                indicators_to_test.append(('WeeklyPattern' + ('_Adaptive' if use_adaptive else ''), ind))
+
+                name_suffix = '_Adaptive' if use_adaptive else ''
+                if train_end_date:
+                    name_suffix += f'_Train{train_end_date}'
+                indicators_to_test.append(('WeeklyPattern' + name_suffix, ind))
             else:
                 print(f"Warning: Unknown indicator type '{ind_type}', skipping")
 
@@ -474,6 +480,9 @@ Examples:
   # Run with weekly pattern indicator (adaptive mode)
   python cli.py backtest --indicators weekly-pattern:adaptive
 
+  # Run with weekly pattern indicator (adaptive with training cutoff date)
+  python cli.py backtest --indicators weekly-pattern:adaptive:2020-12-31
+
   # Run backtest with benchmark comparison (settlement vs other weekdays)
   python cli.py backtest --benchmark
 
@@ -558,7 +567,8 @@ Examples:
         nargs='+',
         help='Indicator(s) to use. Format: TYPE[:PARAM]. '
              'Types: price-diff, ma, momentum, candle, opening, weekly-pattern. '
-             'Examples: ma:5:close, momentum:10, candle, opening:invert, weekly-pattern, weekly-pattern:adaptive. '
+             'Examples: ma:5:close, momentum:10, candle, opening:invert, weekly-pattern, '
+             'weekly-pattern:adaptive, weekly-pattern:adaptive:2020-12-31 (with training cutoff date). '
              'Multiple indicators run separately plus one combined backtest.'
     )
     backtest_parser.set_defaults(func=run_backtest)
