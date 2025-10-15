@@ -135,6 +135,73 @@ class FixedDayBenchmarkTest:
         else:
             raise Exception(f"prev_close_calc: {self.prev_close_calc} not supported")
 
+    def _create_weekday_adaptive_indicator(self, weekday):
+        """
+        Create an adaptive WeeklyPatternIndicator trained specifically on this weekday's data
+
+        This creates a mock backtester that uses the weekday's dates as "settlement dates"
+        so the adaptive training uses the correct data distribution.
+
+        Args:
+            weekday: 0=Monday, 1=Tuesday, 3=Thursday, 4=Friday
+
+        Returns:
+            WeeklyPatternIndicator trained on weekday-specific data, or None if failed
+        """
+        try:
+            from indicators import WeeklyPatternIndicator
+
+            # Create a mock backtester that treats this weekday as "settlement days"
+            class WeekdayMockBacktester:
+                """Mock backtester that uses weekday dates as settlement dates"""
+                def __init__(self, data, weekday_dates, opening_price_calc, prev_close_calc, benchmark_test):
+                    self.data = data
+                    self.opening_price_calc = opening_price_calc
+                    self.prev_close_calc = prev_close_calc
+                    self.benchmark_test = benchmark_test
+
+                    # Create settlement_dates DataFrame with weekday dates
+                    self.settlement_dates = pd.DataFrame({
+                        'date': weekday_dates,
+                        'type': ['weekly'] * len(weekday_dates)
+                    })
+
+                def calculate_opening_date(self, settlement_date):
+                    """Use the same logic as benchmark test"""
+                    return self.benchmark_test.calculate_opening_day_for_date(settlement_date)
+
+            # Get weekday dates
+            weekday_dates = self.get_fixed_day_dates(weekday)
+
+            if len(weekday_dates) < 10:
+                print(f"Warning: Only {len(weekday_dates)} dates available for {self.weekday_names[weekday]}, may not be enough for training")
+
+            # Create mock backtester
+            mock_backtester = WeekdayMockBacktester(
+                self.data,
+                weekday_dates,
+                self.opening_price_calc,
+                self.prev_close_calc,
+                self
+            )
+
+            # Create new indicator with weekday-specific training
+            weekday_indicator = WeeklyPatternIndicator(
+                name=f"WeeklyPattern_{self.weekday_names[weekday]}_Adaptive",
+                opening_price_calc=self.opening_price_calc,
+                prev_close_calc=self.prev_close_calc,
+                use_adaptive=True,
+                backtester=mock_backtester
+            )
+
+            return weekday_indicator
+
+        except Exception as e:
+            print(f"Error creating weekday-specific indicator: {e}")
+            import traceback
+            traceback.print_exc()
+            return None
+
     def run_fixed_day_backtest(self, weekday, max_dates=None, verbose=False):
         """
         Run backtest for a specific weekday using the same strategy as settlement days
@@ -146,6 +213,20 @@ class FixedDayBenchmarkTest:
         """
         weekday_name = self.weekday_names[weekday]
         print(f"Running {weekday_name} backtest...")
+
+        # If using adaptive WeeklyPatternIndicator, create a weekday-specific version
+        if self.trend_indicator is not None:
+            from indicators import WeeklyPatternIndicator
+            if isinstance(self.trend_indicator, WeeklyPatternIndicator) and self.trend_indicator.use_adaptive:
+                print(f"Creating {weekday_name}-specific adaptive indicator...")
+                # Create a mock backtester for this specific weekday
+                weekday_specific_indicator = self._create_weekday_adaptive_indicator(weekday)
+                if weekday_specific_indicator is not None:
+                    # Use the weekday-specific indicator for this test
+                    original_indicator = self.trend_indicator
+                    self.trend_indicator = weekday_specific_indicator
+                else:
+                    print(f"Warning: Could not create weekday-specific indicator, using original")
 
         # Get all dates for this weekday
         weekday_dates = self.get_fixed_day_dates(weekday)
