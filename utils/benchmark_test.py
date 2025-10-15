@@ -101,9 +101,9 @@ class FixedDayBenchmarkTest:
         # Use a similar period as settlement days (approximately weekly)
 
         # Go back 7 days to find the opening day
-        opening_date = target_date - timedelta(days=7)
+        opening_date = target_date - timedelta(days=6)
 
-        # Find the next available trading day after the 7-day lookback
+        # Find the next available trading day after the 6-day lookback
         while not (self.data['Date'] == opening_date).any() and opening_date < target_date:
             opening_date += timedelta(days=1)
 
@@ -135,13 +135,14 @@ class FixedDayBenchmarkTest:
         else:
             raise Exception(f"prev_close_calc: {self.prev_close_calc} not supported")
 
-    def run_fixed_day_backtest(self, weekday, max_dates=None):
+    def run_fixed_day_backtest(self, weekday, max_dates=None, verbose=False):
         """
         Run backtest for a specific weekday using the same strategy as settlement days
 
         Args:
             weekday: 0=Monday, 1=Tuesday, 3=Thursday, 4=Friday
             max_dates: Maximum number of dates to test (for faster execution)
+            verbose: If True, print detailed trade information
         """
         weekday_name = self.weekday_names[weekday]
         print(f"Running {weekday_name} backtest...")
@@ -155,6 +156,14 @@ class FixedDayBenchmarkTest:
             weekday_dates = [weekday_dates[i] for i in indices]
 
         print(f"Testing {len(weekday_dates)} {weekday_name} dates...")
+
+        if verbose:
+            print(f"\n{'='*120}")
+            print(f"DETAILED {weekday_name.upper()} BACKTEST LOG")
+            print(f"Indicator: {type(self.trend_indicator).__name__ if self.trend_indicator else 'Default (Price Difference)'}")
+            print(f"{'='*120}")
+            print(f"{'No.':<4} {'Target':<11} {'Opening':<11} {'PrevDay':<11} {'Open$':<9} {'PrevClose$':<11} {'TrendVal':<10} {'Sig':<5} {'Dir':<6} {'TgtOpen$':<10} {'TgtClose$':<11} {'P&L%':<7}")
+            print(f"{'-'*120}")
 
         results = []
 
@@ -181,6 +190,9 @@ class FixedDayBenchmarkTest:
                 )
                 trend_signal = indicator_result.signal
                 trend_value = indicator_result.value
+                # Get prices for logging
+                opening_price = self.get_opening_price(opening_day)
+                prev_close = self.get_prev_close(prev_day, target_date)
             else:
                 # Use default logic: prev_close - opening_price
                 opening_price = self.get_opening_price(opening_day)
@@ -231,6 +243,8 @@ class FixedDayBenchmarkTest:
                 'weekday_name': weekday_name,
                 'opening_day': opening_day,
                 'prev_day': prev_day,
+                'opening_price': opening_price,
+                'prev_close': prev_close,
                 'trend_indicator': trend_value,
                 'trend_signal': trend_signal,
                 'direction': direction,
@@ -246,12 +260,24 @@ class FixedDayBenchmarkTest:
 
             results.append(result)
 
+            # Print verbose log
+            if verbose:
+                trade_no = len(results)
+                signal_str = '+1' if trend_signal == 1 else ('-1' if trend_signal == -1 else '0')
+                dir_str = 'LONG' if direction == 'long' else ('SHORT' if direction == 'short' else 'NONE')
+                print(f"{trade_no:<4} {target_date.strftime('%Y-%m-%d'):<11} {opening_day.strftime('%Y-%m-%d'):<11} {prev_day.strftime('%Y-%m-%d'):<11} {opening_price:<9.0f} {prev_close:<11.0f} {trend_value:<10.2f} {signal_str:<5} {dir_str:<6} {target_open:<10.0f} {target_close:<11.0f} {pnl_pct:<7.2f}")
+
         results_df = pd.DataFrame(results)
         print(f"Completed {weekday_name} backtest with {len(results_df)} trades")
 
+        if verbose:
+            print(f"{'-'*120}")
+            print(f"Summary: {len(results_df)} trades | Avg P&L: {results_df['pnl_pct'].mean():.2f}% | Win Rate: {(results_df['pnl_pct'] > 0).sum() / len(results_df) * 100:.1f}%")
+            print(f"{'='*120}\n")
+
         return results_df
 
-    def run_all_benchmarks(self, max_dates_per_weekday=None):
+    def run_all_benchmarks(self, max_dates_per_weekday=None, verbose=False):
         """Run benchmarks for all weekdays"""
         print("Running all fixed day pattern benchmarks...")
 
@@ -260,7 +286,7 @@ class FixedDayBenchmarkTest:
         for weekday in [0, 1, 3, 4]:
             weekday_name = self.weekday_names[weekday]
             try:
-                results = self.run_fixed_day_backtest(weekday, max_dates=max_dates_per_weekday)
+                results = self.run_fixed_day_backtest(weekday, max_dates=max_dates_per_weekday, verbose=verbose)
                 self.benchmark_results[weekday_name] = results
             except Exception as e:
                 print(f"Error running {weekday_name} benchmark: {e}")

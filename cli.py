@@ -159,7 +159,8 @@ def run_backtest(args):
 
             print("3. Running benchmark tests (comparing other weekdays)...")
             max_dates = args.benchmark_max_dates if hasattr(args, 'benchmark_max_dates') else 500
-            benchmark_tester.run_all_benchmarks(max_dates_per_weekday=max_dates)
+            verbose = args.benchmark_verbose if hasattr(args, 'benchmark_verbose') else False
+            benchmark_tester.run_all_benchmarks(max_dates_per_weekday=max_dates, verbose=verbose)
 
             if not args.no_plots:
                 print("4. Creating comparison plots...")
@@ -535,6 +536,11 @@ Examples:
         type=int,
         default=500,
         help='Maximum dates to test per weekday in benchmark mode (default: 500)'
+    )
+    backtest_parser.add_argument(
+        '--benchmark-verbose',
+        action='store_true',
+        help='Print detailed trade information in benchmark mode'
     )
     backtest_parser.add_argument(
         '--indicators',
