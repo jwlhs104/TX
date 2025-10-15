@@ -1547,6 +1547,7 @@ class TaiwanFuturesBacktest:
     def create_multi_indicator_cumulative_returns_plot(backtest_list, output_filename=None):
         """
         Create cumulative returns comparison plot for multiple indicators
+        Highlights divergence points caused by weekly K-bar classification
 
         Args:
             backtest_list: List of tuples (indicator_name, backtester_instance)
@@ -1566,6 +1567,9 @@ class TaiwanFuturesBacktest:
 
         # Color palette - use a colormap for better distinction
         colors = plt.cm.tab10(np.linspace(0, 1, len(backtest_list)))
+
+        # Store all trades data for divergence analysis
+        all_trades_data = []
 
         # Plot each indicator's cumulative returns
         for idx, (ind_name, backtester) in enumerate(backtest_list):
@@ -1590,12 +1594,126 @@ class TaiwanFuturesBacktest:
                    color=colors[idx], linewidth=2.5,
                    label=ind_name, marker='o', markersize=2, alpha=0.8)
 
+            # Store for divergence analysis
+            all_trades_data.append({
+                'name': ind_name,
+                'trades': trades,
+                'cumulative': cumulative_returns
+            })
+
+        # Analyze divergences if we have exactly 2 indicators
+        if len(all_trades_data) == 2:
+            print("Analyzing signal divergences caused by weekly K-bar patterns...")
+
+            # Get the two sets of trades
+            trades1 = all_trades_data[0]['trades'].set_index('settlement_date')
+            trades2 = all_trades_data[1]['trades'].set_index('settlement_date')
+
+            # Find common settlement dates
+            common_dates = trades1.index.intersection(trades2.index)
+
+            # Analyze divergences - categorize by weekly K-bar color
+            divergence_points = {
+                'red_weekly': [],    # Weekly pattern formed a 紅K (close > open)
+                'black_weekly': []   # Weekly pattern formed a 黑K (close < open)
+            }
+
+            divergence_count = 0
+            for date in common_dates:
+                sig1 = trades1.loc[date, 'trend_signal']
+                sig2 = trades2.loc[date, 'trend_signal']
+
+                # Check if signals diverge (different directions)
+                if sig1 != sig2 and sig1 != 0 and sig2 != 0:
+                    divergence_count += 1
+
+                    # Calculate weekly K-bar color based on opening_price and prev_close
+                    # These represent the weekly K-bar's open and close
+                    opening_price = trades1.loc[date, 'opening_price']  # Weekly K open
+                    prev_close = trades1.loc[date, 'prev_close']        # Weekly K close
+
+                    # Determine weekly K-bar color
+                    is_red_weekly = prev_close > opening_price
+
+                    # Get cumulative return at this point (use average of both)
+                    cum1 = all_trades_data[0]['cumulative'][all_trades_data[0]['trades']['settlement_date'] == date].values
+                    cum2 = all_trades_data[1]['cumulative'][all_trades_data[1]['trades']['settlement_date'] == date].values
+
+                    if len(cum1) > 0 and len(cum2) > 0:
+                        avg_cum = (cum1[0] + cum2[0]) / 2
+
+                        # Categorize by weekly K-bar color
+                        if is_red_weekly:
+                            divergence_points['red_weekly'].append((date, avg_cum))
+                        else:
+                            divergence_points['black_weekly'].append((date, avg_cum))
+
+            print(f"Found {divergence_count} divergence points")
+            print(f"  Red K (Weekly bullish): {len(divergence_points['red_weekly'])}")
+            print(f"  Black K (Weekly bearish): {len(divergence_points['black_weekly'])}")
+
+            # Save divergence details to CSV
+            divergence_data = []
+            for date in common_dates:
+                sig1 = trades1.loc[date, 'trend_signal']
+                sig2 = trades2.loc[date, 'trend_signal']
+
+                if sig1 != sig2 and sig1 != 0 and sig2 != 0:
+                    opening_price = trades1.loc[date, 'opening_price']
+                    prev_close = trades1.loc[date, 'prev_close']
+                    is_red_weekly = prev_close > opening_price
+
+                    # Get trade details from both indicators
+                    trade1_pnl = trades1.loc[date, 'pnl_pct']
+                    trade2_pnl = trades2.loc[date, 'pnl_pct']
+                    settlement_open = trades1.loc[date, 'settlement_open']
+                    settlement_close = trades1.loc[date, 'settlement_close']
+
+                    divergence_data.append({
+                        'settlement_date': date,
+                        'weekly_kbar_type': 'Red K' if is_red_weekly else 'Black K',
+                        'opening_price': opening_price,
+                        'prev_close': prev_close,
+                        'settlement_open': settlement_open,
+                        'settlement_close': settlement_close,
+                        f'{all_trades_data[0]["name"]}_signal': 'LONG' if sig1 == 1 else 'SHORT',
+                        f'{all_trades_data[0]["name"]}_pnl_pct': trade1_pnl,
+                        f'{all_trades_data[1]["name"]}_signal': 'LONG' if sig2 == 1 else 'SHORT',
+                        f'{all_trades_data[1]["name"]}_pnl_pct': trade2_pnl,
+                    })
+
+            if divergence_data:
+                from config import OUTPUT_DIR
+                divergence_df = pd.DataFrame(divergence_data)
+                divergence_csv_path = OUTPUT_DIR / 'results' / 'signal_divergences.csv'
+                divergence_csv_path.parent.mkdir(parents=True, exist_ok=True)
+                divergence_df.to_csv(divergence_csv_path, index=False, encoding='utf-8-sig')
+                print(f"Divergence details saved to: {divergence_csv_path}")
+
+            # Plot divergence markers
+            # Red weekly K-bar divergences - use red diamond markers
+            if divergence_points['red_weekly']:
+                dates, values = zip(*divergence_points['red_weekly'])
+                ax.scatter(dates, values, color='red', marker='D', s=100,
+                          label=f'Red K Divergence ({len(dates)})', zorder=10, alpha=0.8,
+                          edgecolors='darkred', linewidth=1.5)
+
+            # Black weekly K-bar divergences - use green diamond markers
+            if divergence_points['black_weekly']:
+                dates, values = zip(*divergence_points['black_weekly'])
+                ax.scatter(dates, values, color='green', marker='D', s=100,
+                          label=f'Black K Divergence ({len(dates)})', zorder=10, alpha=0.8,
+                          edgecolors='darkgreen', linewidth=1.5)
+
         # Formatting
-        ax.set_title('Cumulative Returns Comparison: Multiple Indicators',
-                    fontsize=16, fontweight='bold', pad=20)
+        title = 'Cumulative Returns Comparison: Multiple Indicators'
+        if len(all_trades_data) == 2:
+            title += '\n(Divergence Points Colored by Weekly K-bar Pattern)'
+
+        ax.set_title(title, fontsize=16, fontweight='bold', pad=20)
         ax.set_xlabel('Settlement Date', fontsize=14, fontweight='bold')
         ax.set_ylabel('Cumulative Return (%)', fontsize=14, fontweight='bold')
-        ax.legend(loc='best', fontsize=11, framealpha=0.9)
+        ax.legend(loc='best', fontsize=10, framealpha=0.9)
         ax.grid(True, alpha=0.3, linestyle='--')
         ax.axhline(y=0, color='black', linestyle='-', linewidth=0.8, alpha=0.5)
 
