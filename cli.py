@@ -304,6 +304,15 @@ def run_backtest(args):
                     print(f"  筆均: {stats.get('筆均', 0):.2f}%")
                     print(f"  淨利: {stats.get('淨利', 0):.2f}%")
 
+                # Create multi-indicator cumulative returns comparison plot (exclude Combined)
+                if not args.no_plots:
+                    print("\nCreating multi-indicator cumulative returns comparison plot...")
+                    # Filter out Combined indicator for the comparison plot
+                    individual_backtests = [(name, bt) for name, bt in all_backtests
+                                           if not name.startswith('Combined')]
+                    if len(individual_backtests) > 1:
+                        TaiwanFuturesBacktest.create_multi_indicator_cumulative_returns_plot(individual_backtests)
+
             print("\n" + "="*80)
             print("✓ All backtests completed successfully!")
             print("="*80)

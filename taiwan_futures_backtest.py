@@ -1543,6 +1543,83 @@ class TaiwanFuturesBacktest:
         generator = ReportGenerator(self, indicator_name=indicator_name)
         return generator.save_results_summary_to_md(filename)
 
+    @staticmethod
+    def create_multi_indicator_cumulative_returns_plot(backtest_list, output_filename=None):
+        """
+        Create cumulative returns comparison plot for multiple indicators
+
+        Args:
+            backtest_list: List of tuples (indicator_name, backtester_instance)
+            output_filename: Optional custom output filename
+
+        Returns:
+            str: Path to saved plot file
+        """
+        if not backtest_list or len(backtest_list) == 0:
+            print("No backtests provided for comparison plot.")
+            return None
+
+        print(f"\nCreating cumulative returns comparison plot for {len(backtest_list)} indicators...")
+
+        # Set up the plot
+        fig, ax = plt.subplots(figsize=(16, 10))
+
+        # Color palette - use a colormap for better distinction
+        colors = plt.cm.tab10(np.linspace(0, 1, len(backtest_list)))
+
+        # Plot each indicator's cumulative returns
+        for idx, (ind_name, backtester) in enumerate(backtest_list):
+            if backtester.results is None or len(backtester.results) == 0:
+                print(f"Warning: No results for {ind_name}, skipping...")
+                continue
+
+            # Filter out no_trade entries
+            trades = backtester.results[backtester.results['direction'] != 'no_trade'].copy()
+            if len(trades) == 0:
+                print(f"Warning: No trades for {ind_name}, skipping...")
+                continue
+
+            # Sort by settlement date
+            trades = trades.sort_values('settlement_date')
+
+            # Calculate cumulative returns
+            cumulative_returns = trades['pnl_pct'].cumsum()
+
+            # Plot the line
+            ax.plot(trades['settlement_date'], cumulative_returns,
+                   color=colors[idx], linewidth=2.5,
+                   label=ind_name, marker='o', markersize=2, alpha=0.8)
+
+        # Formatting
+        ax.set_title('Cumulative Returns Comparison: Multiple Indicators',
+                    fontsize=16, fontweight='bold', pad=20)
+        ax.set_xlabel('Settlement Date', fontsize=14, fontweight='bold')
+        ax.set_ylabel('Cumulative Return (%)', fontsize=14, fontweight='bold')
+        ax.legend(loc='best', fontsize=11, framealpha=0.9)
+        ax.grid(True, alpha=0.3, linestyle='--')
+        ax.axhline(y=0, color='black', linestyle='-', linewidth=0.8, alpha=0.5)
+
+        # Format x-axis dates
+        fig.autofmt_xdate()
+
+        plt.tight_layout()
+
+        # Save the plot
+        from config import OUTPUT_DIR
+        if output_filename:
+            plot_filename = OUTPUT_DIR / 'plots' / output_filename
+        else:
+            plot_filename = OUTPUT_DIR / 'plots' / 'multi_indicator_cumulative_returns.png'
+
+        # Ensure the plots directory exists
+        plot_filename.parent.mkdir(parents=True, exist_ok=True)
+
+        plt.savefig(plot_filename, dpi=300, bbox_inches='tight')
+        print(f"Multi-indicator cumulative returns plot saved to: {plot_filename}")
+        plt.close()
+
+        return str(plot_filename)
+
 def main():
     """
     Main execution function
