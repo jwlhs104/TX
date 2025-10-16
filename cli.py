@@ -173,6 +173,8 @@ def run_backtest(args):
                 benchmark_tester.create_comparison_plots()
                 print("4.1. Creating cumulative returns plot...")
                 benchmark_tester.create_cumulative_returns_plot()
+                print("4.2. Creating indicator analysis plots for all benchmarks...")
+                benchmark_tester.create_indicator_analysis_plots()
 
             print("5. Generating benchmark report...")
             benchmark_tester.generate_benchmark_report()

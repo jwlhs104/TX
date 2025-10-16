@@ -544,6 +544,62 @@ class FixedDayBenchmarkTest:
 
         return plot_filename
 
+    def create_indicator_analysis_plots(self):
+        """Create indicator analysis plot for each weekday benchmark"""
+        if not self.benchmark_results:
+            print("No benchmark results available for plotting.")
+            return
+
+        print("Creating indicator analysis plots for each benchmark...")
+        plot_files = {}
+
+        # Create plot for settlement days
+        print("Creating indicator analysis plot for Settlement Days...")
+        settlement_plot = self.settlement_backtester.create_indicator_analysis_plot(indicator_name='Settlement_Wednesday')
+        if settlement_plot:
+            plot_files['Settlement_Wednesday'] = settlement_plot
+
+        # Create plot for each weekday benchmark
+        for weekday_name, results_df in self.benchmark_results.items():
+            if len(results_df) == 0:
+                continue
+
+            print(f"Creating indicator analysis plot for {weekday_name}...")
+
+            # Create a temporary TaiwanFuturesBacktest instance with the benchmark results
+            # We need to convert benchmark results to the same format as settlement results
+            temp_results = results_df.rename(columns={
+                'target_date': 'settlement_date',
+                'target_open': 'settlement_open',
+                'target_close': 'settlement_close'
+            }).copy()
+
+            # Add missing columns with dummy values if needed
+            if 'settlement_type' not in temp_results.columns:
+                temp_results['settlement_type'] = 'benchmark'
+
+            # Create a mock backtester just for plotting
+            from taiwan_futures_backtest import TaiwanFuturesBacktest
+            mock_backtester = TaiwanFuturesBacktest(
+                start_date=self.start_date,
+                end_date=self.end_date,
+                counting_period="weekly",
+                opening_price_calc=self.opening_price_calc,
+                prev_close_calc=self.prev_close_calc
+            )
+            mock_backtester.data = self.data
+            mock_backtester.results = temp_results
+
+            # Create the plot
+            plot_file = mock_backtester.create_indicator_analysis_plot(
+                indicator_name=f'Benchmark_{weekday_name}'
+            )
+            if plot_file:
+                plot_files[weekday_name] = plot_file
+
+        print(f"Created {len(plot_files)} indicator analysis plots")
+        return plot_files
+
     def create_comparison_plots(self):
         """Create comprehensive comparison plots"""
         if not self.benchmark_results:
