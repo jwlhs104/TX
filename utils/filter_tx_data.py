@@ -3,19 +3,19 @@ from datetime import datetime
 import glob
 
 # Get all CSV files from 2017-2024
-csv_files = sorted([f"data/{year}_fut.csv" for year in range(2017, 2025)])
+csv_files = sorted([f"data/{year}_fut.csv" for year in range(2017, 2026)])
 
-# Add 2025 monthly files
-monthly_2025_files = sorted(glob.glob("data/2025/*.csv"))
-csv_files.extend(monthly_2025_files)
+# Add 2026 monthly files
+monthly_2026_files = sorted(glob.glob("data/2026/*.csv"))
+csv_files.extend(monthly_2026_files)
 
 print(f"Processing files: {csv_files}")
 
 all_filtered_data = []
 
 for csv_file in csv_files:
-    if "2025/" in csv_file:
-        year = "2025"
+    if "2026/" in csv_file:
+        year = "2026"
         print(f"\nProcessing {year} data from {csv_file}...")
     else:
         year = csv_file.split('/')[-1][:4]
